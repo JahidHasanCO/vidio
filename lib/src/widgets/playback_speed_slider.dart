@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
 class PlaybackSpeedSlider extends StatefulWidget {
-  final List<double> speeds;
-  final double currentSpeed;
-  final ValueChanged<double> onSpeedChanged;
-
   const PlaybackSpeedSlider({
-    super.key,
     required this.speeds,
     required this.currentSpeed,
     required this.onSpeedChanged,
+    super.key,
   });
+
+  final List<double> speeds;
+  final double currentSpeed;
+  final ValueChanged<double> onSpeedChanged;
 
   @override
   State<PlaybackSpeedSlider> createState() => _PlaybackSpeedSliderState();
@@ -68,7 +68,6 @@ class _PlaybackSpeedSliderState extends State<PlaybackSpeedSlider> {
             valueIndicatorColor: const Color(0xfff70808),
           ),
           child: Slider(
-            min: 0,
             max: (widget.speeds.length - 1).toDouble(),
             divisions: widget.speeds.length - 1,
             value: widget.speeds.indexOf(_tempSpeed).toDouble(),

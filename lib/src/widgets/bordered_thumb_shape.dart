@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
 class BorderedThumbShape extends SliderComponentShape {
-  final double thumbRadius;
-  final Color centerColor;
-  final double borderWidth;
 
   const BorderedThumbShape({
     this.thumbRadius = 12.0,
     this.centerColor = Colors.pinkAccent,
     this.borderWidth = 3.0,
   });
+
+  final double thumbRadius;
+  final Color centerColor;
+  final double borderWidth;
 
   @override
   Size getPreferredSize(bool isEnabled, bool isDiscrete) {
@@ -31,16 +32,16 @@ class BorderedThumbShape extends SliderComponentShape {
     required double textScaleFactor,
     required Size sizeWithOverflow,
   }) {
-    final Canvas canvas = context.canvas;
+    final canvas = context.canvas;
 
     // Draw outer white circle (border)
-    final Paint borderPaint = Paint()
+    final borderPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, thumbRadius, borderPaint);
 
     // Draw inner circle
-    final Paint fillPaint = Paint()
+    final fillPaint = Paint()
       ..color = centerColor
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, thumbRadius - borderWidth, fillPaint);

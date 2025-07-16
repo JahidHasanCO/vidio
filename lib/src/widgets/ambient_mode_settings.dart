@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 
 class AmbientModeSettings extends StatelessWidget {
   const AmbientModeSettings({
-    super.key,
     required this.value,
+    super.key,
     this.onChanged,
   });
 
   final bool value;
-  final void Function(bool)? onChanged;
+  final void Function({bool? value})? onChanged;
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -22,9 +23,9 @@ class AmbientModeSettings extends StatelessWidget {
             color: Colors.black87,
           ),
           title: const Text(
-            "Ambient Mode",
+            'Ambient Mode',
             style: TextStyle(
-              fontSize: 14.0,
+              fontSize: 14,
               color: Colors.black,
               fontWeight: FontWeight.bold,
             ),
@@ -34,12 +35,12 @@ class AmbientModeSettings extends StatelessWidget {
             value: value,
             activeColor: const Color(0xfff70808),
             onChanged: (val) {
-              onChanged?.call(val);
+              onChanged?.call(value: val);
               Navigator.pop(context);
             },
           ),
           onTap: () {
-            onChanged?.call(!value);
+            onChanged?.call(value: !value);
             Navigator.pop(context);
           },
         ),

@@ -5,8 +5,8 @@ import 'package:vidio/vidio.dart';
 class VideoQualityWidget extends StatelessWidget {
   /// Constructor
   const VideoQualityWidget({
-    super.key,
     required this.child,
+    super.key,
     this.onTap,
     this.videoStyle = const VideoStyle(),
   });
@@ -28,11 +28,11 @@ class VideoQualityWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: videoStyle.videoQualityBgColor ?? Colors.grey,
           borderRadius: videoStyle.videoQualityRadius ??
-              const BorderRadius.all(Radius.circular(5.0)),
+              const BorderRadius.all(Radius.circular(5)),
         ),
         child: Padding(
           padding: videoStyle.videoQualityPadding ??
-              const EdgeInsets.symmetric(horizontal: 5.0, vertical: 3.0),
+              const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
           child: child,
         ),
       ),

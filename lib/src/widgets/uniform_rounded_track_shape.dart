@@ -1,26 +1,24 @@
 import 'package:flutter/material.dart';
 
 class UniformRoundedTrackShape extends SliderTrackShape {
-  final Radius trackRadius;
-
   const UniformRoundedTrackShape({this.trackRadius = const Radius.circular(6)});
+  final Radius trackRadius;
 
   @override
   Rect getPreferredRect({
     required RenderBox parentBox,
-    Offset offset = Offset.zero,
     required SliderThemeData sliderTheme,
+    Offset offset = Offset.zero,
     bool isEnabled = false,
     bool isDiscrete = false,
   }) {
-    final double trackHeight = sliderTheme.trackHeight ?? 4.0;
-    final double trackLeft = offset.dx +
+    final trackHeight = sliderTheme.trackHeight ?? 4.0;
+    final trackLeft = offset.dx +
         (sliderTheme.thumbShape?.getPreferredSize(true, isDiscrete).width ??
                 0) /
             2;
-    final double trackTop =
-        offset.dy + (parentBox.size.height - trackHeight) / 2;
-    final double trackWidth = parentBox.size.width -
+    final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final trackWidth = parentBox.size.width -
         (sliderTheme.thumbShape?.getPreferredSize(true, isDiscrete).width ?? 0);
 
     return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
@@ -31,15 +29,15 @@ class UniformRoundedTrackShape extends SliderTrackShape {
     PaintingContext context,
     Offset offset, {
     required Animation<double> enableAnimation,
-    bool isDiscrete = false,
-    bool isEnabled = false,
     required RenderBox parentBox,
-    Offset? secondaryOffset,
     required SliderThemeData sliderTheme,
     required TextDirection textDirection,
     required Offset thumbCenter,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    Offset? secondaryOffset,
   }) {
-    final Rect trackRect = getPreferredRect(
+    final trackRect = getPreferredRect(
       parentBox: parentBox,
       offset: offset,
       sliderTheme: sliderTheme,
@@ -47,20 +45,20 @@ class UniformRoundedTrackShape extends SliderTrackShape {
       isDiscrete: isDiscrete,
     );
 
-    final Paint activePaint = Paint()
+    final activePaint = Paint()
       ..color = sliderTheme.activeTrackColor ?? Colors.orange;
-    final Paint inactivePaint = Paint()
+    final inactivePaint = Paint()
       ..color = sliderTheme.inactiveTrackColor ?? Colors.grey;
 
-    final bool isLTR = textDirection == TextDirection.ltr;
-    final double thumbX = thumbCenter.dx;
+    final isLTR = textDirection == TextDirection.ltr;
+    final thumbX = thumbCenter.dx;
 
-    final RRect leftTrack = RRect.fromRectAndRadius(
+    final leftTrack = RRect.fromRectAndRadius(
       Rect.fromLTRB(trackRect.left, trackRect.top, thumbX, trackRect.bottom),
       trackRadius,
     );
 
-    final RRect rightTrack = RRect.fromRectAndRadius(
+    final rightTrack = RRect.fromRectAndRadius(
       Rect.fromLTRB(thumbX, trackRect.top, trackRect.right, trackRect.bottom),
       trackRadius,
     );

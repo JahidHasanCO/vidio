@@ -1,24 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import 'package:vidio/src/widgets/bordered_thumb_shape.dart';
 import 'package:vidio/src/widgets/uniform_rounded_track_shape.dart';
-import 'package:video_player/video_player.dart';
 
 class SeekSlider extends StatefulWidget {
-  final VideoPlayerController controller;
-  final VideoProgressColors? colors;
-
   const SeekSlider({
-    super.key,
     required this.controller,
+    super.key,
     this.colors,
   });
+  final VideoPlayerController controller;
+  final VideoProgressColors? colors;
 
   @override
   State<SeekSlider> createState() => _SeekSliderState();
 }
 
 class _SeekSliderState extends State<SeekSlider> {
-  double _currentValue = 0.0;
+  double _currentValue = 0;
   bool _isUserInteracting = false;
 
   @override
@@ -55,15 +54,13 @@ class _SeekSliderState extends State<SeekSlider> {
 
     return SliderTheme(
       data: SliderTheme.of(context).copyWith(
-        trackHeight: 10.0,
-        trackShape:
-            const UniformRoundedTrackShape(trackRadius: Radius.circular(6)),
+        trackHeight: 10,
+        trackShape: const UniformRoundedTrackShape(),
         activeTrackColor: widget.colors?.playedColor ?? const Color(0xffff6600),
         inactiveTrackColor: widget.colors?.backgroundColor ?? Colors.grey[400],
         secondaryActiveTrackColor:
             widget.colors?.bufferedColor ?? Colors.grey[600],
         thumbShape: BorderedThumbShape(
-          thumbRadius: 12,
           centerColor: widget.colors?.playedColor ?? const Color(0xffff6600),
           borderWidth: 6,
         ),
@@ -77,10 +74,9 @@ class _SeekSliderState extends State<SeekSlider> {
         valueIndicatorShape: const PaddleSliderValueIndicatorShape(),
         valueIndicatorColor: Colors.black,
         valueIndicatorTextStyle:
-            const TextStyle(color: Colors.white, fontSize: 16.0),
+            const TextStyle(color: Colors.white, fontSize: 16),
       ),
       child: Slider(
-        min: 0.0,
         max: duration,
         value: _currentValue,
         label: _formatDuration(Duration(milliseconds: _currentValue.round())),

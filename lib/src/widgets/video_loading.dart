@@ -15,7 +15,7 @@ class VideoLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return loadingStyle?.loading ??
-        Container(
+        ColoredBox(
           color: loadingStyle?.loadingBackgroundColor ?? Colors.black,
           child: Center(
             child: Column(

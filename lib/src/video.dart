@@ -99,8 +99,7 @@ class Vidio extends StatefulWidget {
   State<Vidio> createState() => _VidioState();
 }
 
-class _VidioState extends State<Vidio>
-    with SingleTickerProviderStateMixin {
+class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   String? playType;
   bool loop = false;
   late AnimationController controlBarAnimationController;
@@ -1214,11 +1213,11 @@ class _VidioState extends State<Vidio>
                   ),
                   AmbientModeSettings(
                     value: isAmbientMode,
-                    onChanged: (val) {
+                    onChanged: ({bool? value}) {
                       setState(() {
-                        isAmbientMode = val;
+                        isAmbientMode = value ?? false;
                       });
-                      widget.onAmbientModeChanged?.call(val);
+                      widget.onAmbientModeChanged?.call(value ?? false);
                     },
                   ),
                   const SizedBox(height: 10),

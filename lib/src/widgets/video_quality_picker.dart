@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:vidio/vidio.dart';
 import 'package:vidio/src/model/m3u8.dart';
+import 'package:vidio/vidio.dart';
 
 class VideoQualityPicker extends StatelessWidget {
+  const VideoQualityPicker({
+    required this.videoData,
+    required this.selectedQuality,
+    super.key,
+    this.videoStyle = const VideoStyle(),
+    this.showPicker = false,
+    this.positionRight,
+    this.positionTop,
+    this.onQualitySelected,
+    this.positionLeft,
+    this.positionBottom,
+  });
   final List<M3U8Data> videoData;
   final bool showPicker;
   final double? positionRight;
@@ -12,19 +24,6 @@ class VideoQualityPicker extends StatelessWidget {
   final VideoStyle videoStyle;
   final String selectedQuality;
   final void Function(M3U8Data data)? onQualitySelected;
-
-  const VideoQualityPicker({
-    super.key,
-    required this.videoData,
-    this.videoStyle = const VideoStyle(),
-    this.showPicker = false,
-    this.positionRight,
-    this.positionTop,
-    this.onQualitySelected,
-    this.positionLeft,
-    this.positionBottom,
-    required this.selectedQuality,
-  });
 
   @override
   Widget build(BuildContext context) {
