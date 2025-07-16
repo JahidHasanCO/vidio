@@ -1,23 +1,63 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
-import 'package:vidio/vidio.dart';
+import 'package:video_player/video_player.dart';
 import 'package:vidio/src/model/models.dart';
+import 'package:vidio/src/responses/regex_response.dart';
 import 'package:vidio/src/utils/utils.dart';
 import 'package:vidio/src/widgets/ambient_mode_settings.dart';
 import 'package:vidio/src/widgets/playback_speed_slider.dart';
+import 'package:vidio/src/widgets/player_bottom_bar.dart';
 import 'package:vidio/src/widgets/video_loading.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
-import 'package:vidio/src/widgets/player_bottom_bar.dart';
-import 'package:video_player/video_player.dart';
+import 'package:vidio/vidio.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'responses/regex_response.dart';
 
 class Vidio extends StatefulWidget {
+  const Vidio({
+    required this.url,
+    super.key,
+    this.aspectRatio = 16 / 9,
+    this.videoStyle = const VideoStyle(),
+    this.videoLoadingStyle = const VideoLoadingStyle(),
+    this.onFullScreen,
+    this.onFullScreenIconTap,
+    this.onPlayingVideo,
+    this.onPlayButtonTap,
+    this.onShowMenu,
+    this.onFastForward,
+    this.onRewind,
+    this.headers,
+    this.initFullScreen = false,
+    this.autoPlayVideoAfterInit = true,
+    this.displayFullScreenAfterInit = false,
+    this.allowCacheFile = false,
+    this.onCacheFileCompleted,
+    this.onCacheFileFailed,
+    this.onVideoInitCompleted,
+    this.closedCaptionFile,
+    this.videoPlayerOptions,
+    this.onLiveDirectTap,
+    this.onPause,
+    this.onDispose,
+    this.onBackButtonTap,
+    this.hideFullScreenButton,
+    this.onVideoListTap,
+    this.hidePIPButton,
+    this.onPIPIconTap,
+    this.isAmbientMode = false,
+    this.onAmbientModeChanged,
+    this.allowRepaintBoundary = false,
+    this.repaintBoundaryKey,
+    this.playbackSpeed = 1.0,
+    this.onPlaybackSpeedChanged,
+    this.showMiniProgress = false,
+  });
   final String url;
   final VideoStyle videoStyle;
   final VideoLoadingStyle videoLoadingStyle;
@@ -55,46 +95,6 @@ class Vidio extends StatefulWidget {
   final ValueChanged<double>? onPlaybackSpeedChanged;
   final bool showMiniProgress;
 
-  const Vidio({
-    super.key,
-    required this.url,
-    this.aspectRatio = 16 / 9,
-    this.videoStyle = const VideoStyle(),
-    this.videoLoadingStyle = const VideoLoadingStyle(),
-    this.onFullScreen,
-    this.onFullScreenIconTap,
-    this.onPlayingVideo,
-    this.onPlayButtonTap,
-    this.onShowMenu,
-    this.onFastForward,
-    this.onRewind,
-    this.headers,
-    this.initFullScreen = false,
-    this.autoPlayVideoAfterInit = true,
-    this.displayFullScreenAfterInit = false,
-    this.allowCacheFile = false,
-    this.onCacheFileCompleted,
-    this.onCacheFileFailed,
-    this.onVideoInitCompleted,
-    this.closedCaptionFile,
-    this.videoPlayerOptions,
-    this.onLiveDirectTap,
-    this.onPause,
-    this.onDispose,
-    this.onBackButtonTap,
-    this.hideFullScreenButton,
-    this.onVideoListTap,
-    this.hidePIPButton,
-    this.onPIPIconTap,
-    this.isAmbientMode = false,
-    this.onAmbientModeChanged,
-    this.allowRepaintBoundary = false,
-    this.repaintBoundaryKey,
-    this.playbackSpeed = 1.0,
-    this.onPlaybackSpeedChanged,
-    this.showMiniProgress = false,
-  });
-
   @override
   State<Vidio> createState() => _VidioState();
 }
@@ -115,7 +115,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   double? videoDurationSecond;
   List<M3U8Data> m3u8UrlList = [];
   List<double> playbackSpeeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-  double playbackSpeed = 1.0;
+  double playbackSpeed = 1;
   List<AudioModel> audioList = [];
   String? m3u8Content;
   String? subtitleContent;
@@ -124,7 +124,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   bool showMenu = false;
   bool showSubtitles = false;
   bool? isOffline;
-  String m3u8Quality = "Auto";
+  String m3u8Quality = 'Auto';
   Timer? showTime;
   OverlayEntry? overlayEntry;
   GlobalKey videoQualityKey = GlobalKey();
@@ -141,7 +141,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       });
       final data = m3u8UrlList.firstWhere(
         (d) => d.dataQuality == quality,
-        orElse: () => M3U8Data(dataQuality: quality, dataURL: null),
+        orElse: () => M3U8Data(dataQuality: quality),
       );
       onSelectQuality(data);
     }
@@ -164,10 +164,12 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     playbackSpeed = widget.playbackSpeed;
     urlCheck(widget.url);
     controlBarAnimationController = AnimationController(
-        duration: const Duration(milliseconds: 300), vsync: this);
-    controlTopBarAnimation = Tween(begin: -(36.0 + 0.0 * 2), end: 0.0)
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    controlTopBarAnimation = Tween<double>(begin: -(36.0 + 0.0 * 2), end: 0)
         .animate(controlBarAnimationController);
-    controlBottomBarAnimation = Tween(begin: -(36.0 + 0.0 * 2), end: 0.0)
+    controlBottomBarAnimation = Tween<double>(begin: -(36.0 + 0.0 * 2), end: 0)
         .animate(controlBarAnimationController);
   }
 
@@ -256,17 +258,18 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                               ? RepaintBoundary(
                                   key: widget.repaintBoundaryKey,
                                   child: InteractiveViewer(
-                                    panEnabled: fullScreen ? true : false,
-                                    scaleEnabled: fullScreen ? true : false,
-                                    minScale: 1.0,
-                                    maxScale: 5.0,
+                                    panEnabled: fullScreen,
+                                    scaleEnabled: fullScreen,
+                                    minScale: 1,
+                                    maxScale: 5,
                                     child: VideoPlayer(controller!),
-                                  ))
+                                  ),
+                                )
                               : InteractiveViewer(
-                                  panEnabled: fullScreen ? true : false,
-                                  scaleEnabled: fullScreen ? true : false,
-                                  minScale: 1.0,
-                                  maxScale: 5.0,
+                                  panEnabled: fullScreen,
+                                  scaleEnabled: fullScreen,
+                                  minScale: 1,
+                                  maxScale: 5,
                                   child: VideoPlayer(controller!),
                                 ),
                     ),
@@ -289,7 +292,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     ];
   }
 
-  unlockButton() {
+  Widget unlockButton() {
     return Visibility(
       visible: isLocked && showMenu,
       child: Align(
@@ -297,27 +300,28 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  isLocked = !isLocked;
-                });
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.black.withOpacity(0.5),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20.0,
-                  vertical: 10.0,
-                ),
+            onPressed: () {
+              setState(() {
+                isLocked = !isLocked;
+              });
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.black.withOpacity(0.5),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 10,
               ),
-              icon: const Icon(Icons.lock, color: Colors.white),
-              label: const Text(
-                'Unlock',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14.0,
-                  fontWeight: FontWeight.w500,
-                ),
-              )),
+            ),
+            icon: const Icon(Icons.lock, color: Colors.white),
+            label: const Text(
+              'Unlock',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -331,28 +335,27 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           aspectRatio: 16 / 9,
           child: Stack(
             children: [
-              fullScreen
-                  ? const SizedBox.shrink()
-                  : controller != null
-                      ? Align(
-                          alignment: Alignment.bottomCenter,
-                          child: SizedBox(
-                            height: 1,
-                            child: VideoProgressIndicator(
-                              controller!,
-                              allowScrubbing: false,
-                              colors: VideoProgressColors(
-                                playedColor:
-                                    const Color.fromARGB(255, 241, 0, 0),
-                                bufferedColor: Colors.grey[400] ?? Colors.grey,
-                                backgroundColor:
-                                    Colors.grey[100] ?? Colors.grey,
-                              ),
-                              padding: EdgeInsets.zero,
+              if (fullScreen)
+                const SizedBox.shrink()
+              else
+                controller != null
+                    ? Align(
+                        alignment: Alignment.bottomCenter,
+                        child: SizedBox(
+                          height: 1,
+                          child: VideoProgressIndicator(
+                            controller!,
+                            allowScrubbing: false,
+                            colors: VideoProgressColors(
+                              playedColor: const Color.fromARGB(255, 241, 0, 0),
+                              bufferedColor: Colors.grey[400] ?? Colors.grey,
+                              backgroundColor: Colors.grey[100] ?? Colors.grey,
                             ),
+                            padding: EdgeInsets.zero,
                           ),
-                        )
-                      : const SizedBox.shrink(),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
             ],
           ),
         ),
@@ -370,8 +373,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
             top: fullScreen ? 10.0 : 5,
             left: fullScreen ? 10.0 : 5,
           ),
-          height: 50.0,
-          width: 50.0,
+          height: 50,
+          width: 50,
           alignment: Alignment.center,
           child: InkWell(
             onTap: () {
@@ -402,11 +405,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           aspectRatio: 16 / 9,
           child: Container(
             width: MediaQuery.of(context).size.width,
-            padding: widget.videoStyle.actionBarPadding ??
-                const EdgeInsets.symmetric(
-                  horizontal: 0.0,
-                  vertical: 0.0,
-                ),
+            padding: widget.videoStyle.actionBarPadding ?? EdgeInsets.zero,
             alignment: Alignment.topRight,
             color: widget.videoStyle.actionBarBgColor,
             child: Row(
@@ -420,12 +419,15 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                       });
                     },
                     child: Container(
-                      height: 50.0,
-                      width: 50.0,
+                      height: 50,
+                      width: 50,
                       margin:
                           fullScreen ? const EdgeInsets.only(top: 10) : null,
-                      child: const Icon(Icons.lock_open_sharp,
-                          color: Colors.white, size: 24.0),
+                      child: const Icon(
+                        Icons.lock_open_sharp,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
                   ),
                   InkWell(
@@ -441,8 +443,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                       }
                     },
                     child: Container(
-                      height: 50.0,
-                      width: 50.0,
+                      height: 50,
+                      width: 50,
                       margin:
                           fullScreen ? const EdgeInsets.only(top: 10) : null,
                       child: SvgPicture.asset(
@@ -451,7 +453,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                         height: 24,
                         fit: BoxFit.scaleDown,
                         colorFilter: const ColorFilter.mode(
-                            Colors.white, BlendMode.srcIn),
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
                       ),
                     ),
                   ),
@@ -459,11 +463,14 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                 InkWell(
                   onTap: () => showSettingsDialog(context),
                   child: Container(
-                    height: 50.0,
-                    width: 50.0,
+                    height: 50,
+                    width: 50,
                     margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
-                    child: const Icon(Icons.settings,
-                        color: Colors.white, size: 28.0),
+                    child: const Icon(
+                      Icons.settings,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -484,7 +491,6 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     return Visibility(
       visible: showMenu,
       child: Align(
-        alignment: Alignment.center,
         child: PlayerBottomBar(
           hideFullScreenButton: widget.hideFullScreenButton,
           fullScreen: fullScreen,
@@ -493,7 +499,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           videoDuration: videoDuration ?? '00:00:00',
           videoStyle: widget.videoStyle,
           showBottomBar: showMenu,
-          onPlayButtonTap: () => togglePlay(),
+          onPlayButtonTap: togglePlay,
           onFastForward: (value) => widget.onFastForward?.call(value),
           onRewind: (value) => widget.onRewind?.call(value),
           onFullScreen: () => setState(() {
@@ -536,10 +542,10 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
             highlightColor: Colors.transparent,
             child: Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 14.0,
-                vertical: 14.0,
+                horizontal: 14,
+                vertical: 14,
               ),
-              margin: const EdgeInsets.only(left: 9.0),
+              margin: const EdgeInsets.only(left: 9),
               child: Row(
                 children: [
                   Container(
@@ -552,11 +558,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                           : widget.videoStyle.liveDirectButtonDisableColor,
                     ),
                   ),
-                  const SizedBox(width: 8.0),
+                  const SizedBox(width: 8),
                   Text(
                     widget.videoStyle.liveDirectButtonText ?? 'Live',
                     style: widget.videoStyle.liveDirectButtonTextStyle ??
-                        const TextStyle(color: Colors.white, fontSize: 16.0),
+                        const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ],
               ),
@@ -568,9 +574,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   }
 
   Widget m3u8List() {
-    RenderBox? renderBox =
+    final renderBox =
         videoQualityKey.currentContext?.findRenderObject() as RenderBox?;
-    var offset = renderBox?.localToGlobal(Offset.zero);
+    final offset = renderBox?.localToGlobal(Offset.zero);
     return VideoQualityPicker(
       videoData: m3u8UrlList,
       videoStyle: widget.videoStyle,
@@ -601,11 +607,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       setState(() {
         isOffline = false;
       });
-      if (uri.pathSegments.last.endsWith("mkv")) {
+      if (uri.pathSegments.last.endsWith('mkv')) {
         setState(() {
-          playType = "MKV";
+          playType = 'MKV';
         });
-        widget.onPlayingVideo?.call("MKV");
+        widget.onPlayingVideo?.call('MKV');
 
         videoControlSetup(url);
 
@@ -620,11 +626,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
             onSaveFailed: widget.onCacheFileFailed,
           );
         }
-      } else if (uri.pathSegments.last.endsWith("mp4")) {
+      } else if (uri.pathSegments.last.endsWith('mp4')) {
         setState(() {
-          playType = "MP4";
+          playType = 'MP4';
         });
-        widget.onPlayingVideo?.call("MP4");
+        widget.onPlayingVideo?.call('MP4');
 
         videoControlSetup(url);
 
@@ -641,9 +647,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         }
       } else if (uri.pathSegments.last.endsWith('webm')) {
         setState(() {
-          playType = "WEBM";
+          playType = 'WEBM';
         });
-        widget.onPlayingVideo?.call("WEBM");
+        widget.onPlayingVideo?.call('WEBM');
 
         videoControlSetup(url);
 
@@ -658,11 +664,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
             onSaveFailed: widget.onCacheFileFailed,
           );
         }
-      } else if (uri.pathSegments.last.endsWith("m3u8")) {
+      } else if (uri.pathSegments.last.endsWith('m3u8')) {
         setState(() {
-          playType = "HLS";
+          playType = 'HLS';
         });
-        widget.onPlayingVideo?.call("M3U8");
+        widget.onPlayingVideo?.call('M3U8');
         videoControlSetup(url);
         getM3U8(url);
       } else {
@@ -686,9 +692,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   }
 
   Future<M3U8s?> m3u8Video(String? videoUrl) async {
-    m3u8UrlList.add(M3U8Data(dataQuality: "Auto", dataURL: videoUrl));
+    m3u8UrlList.add(M3U8Data(dataQuality: 'Auto', dataURL: videoUrl));
 
-    RegExp regExp = RegExp(
+    final regExp = RegExp(
       RegexResponse.regexM3U8Resolution,
       caseSensitive: false,
       multiLine: true,
@@ -702,7 +708,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
     try {
       if (m3u8Content == null && videoUrl != null) {
-        http.Response response = await http
+        final response = await http
             .get(
               Uri.parse(videoUrl),
               headers: widget.headers,
@@ -711,15 +717,14 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         if (response.statusCode == 200) {
           m3u8Content = utf8.decode(response.bodyBytes);
 
-          List<File> cachedFiles = [];
-          int index = 0;
+          final cachedFiles = <File>[];
+          var index = 0;
 
-          List<RegExpMatch> matches =
-              regExp.allMatches(m3u8Content ?? '').toList();
+          final matches = regExp.allMatches(m3u8Content ?? '').toList();
 
-          for (RegExpMatch regExpMatch in matches) {
-            String quality = (regExpMatch.group(1)).toString();
-            String sourceURL = (regExpMatch.group(3)).toString();
+          for (final regExpMatch in matches) {
+            final quality = regExpMatch.group(1).toString();
+            final sourceURL = regExpMatch.group(3).toString();
             final netRegex = RegExp(RegexResponse.regexHTTP);
             final netRegex2 = RegExp(RegexResponse.regexURL);
             final isNetwork = netRegex.hasMatch(sourceURL);
@@ -729,37 +734,37 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
               url = sourceURL;
             } else {
               final dataURL = match?.group(0);
-              url = "$dataURL$sourceURL";
+              url = '$dataURL$sourceURL';
             }
-            for (RegExpMatch regExpMatch2 in matches) {
-              String audioURL = (regExpMatch2.group(1)).toString();
+            for (final regExpMatch2 in matches) {
+              final audioURL = regExpMatch2.group(1).toString();
               final isNetwork = netRegex.hasMatch(audioURL);
               final match = netRegex2.firstMatch(videoUrl);
-              String auURL = audioURL;
+              var auURL = audioURL;
 
               if (!isNetwork) {
                 final auDataURL = match!.group(0);
-                auURL = "$auDataURL$audioURL";
+                auURL = '$auDataURL$audioURL';
               }
 
               audioList.add(AudioModel(url: auURL));
             }
 
-            String audio = "";
+            var audio = '';
             if (audioList.isNotEmpty) {
               audio =
-                  """#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio-medium",NAME="audio",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="2",
-                  URI="${audioList.last.url}"\n""";
+                  '''#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio-medium",NAME="audio",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="2",
+                  URI="${audioList.last.url}"\n''';
             } else {
-              audio = "";
+              audio = '';
             }
 
             if (widget.allowCacheFile) {
               try {
-                var file = await FileUtils.cacheFileUsingWriteAsString(
+                final file = await FileUtils.cacheFileUsingWriteAsString(
                   contents:
-                      """#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n$audio#EXT-X-STREAM-INF:CLOSED-CAPTIONS=NONE,BANDWIDTH=1469712,
-                  RESOLUTION=$quality,FRAME-RATE=30.000\n$url""",
+                      '''#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n$audio#EXT-X-STREAM-INF:CLOSED-CAPTIONS=NONE,BANDWIDTH=1469712,
+                  RESOLUTION=$quality,FRAME-RATE=30.000\n$url''',
                   quality: quality,
                   videoUrl: url,
                 );
@@ -782,22 +787,22 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
             //  var orderBasedSerializedList = m3u8UrlList.map((e) => e.dataQuality).toList();
             m3u8UrlList.add(M3U8Data(dataQuality: quality, dataURL: url));
           }
-          M3U8s m3u8s = M3U8s(m3u8s: m3u8UrlList);
+          final m3u8s = M3U8s(m3u8s: m3u8UrlList);
 
           return m3u8s;
         }
       }
     } on TimeoutException catch (e) {
-      debugPrint("Timeout while fetching M3U8: $e");
+      debugPrint('Timeout while fetching M3U8: $e');
     } on SocketException catch (e) {
-      debugPrint("Socket error: $e");
+      debugPrint('Socket error: $e');
     } catch (e) {
-      debugPrint("Unexpected error: $e");
+      debugPrint('Unexpected error: $e');
     }
     return null;
   }
 
-  void videoControlSetup(String? url) async {
+  Future<void> videoControlSetup(String? url) async {
     videoInit(url);
     if (controller == null) return;
     controller?.addListener(listener);
@@ -808,12 +813,12 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       widget.onFullScreen?.call(fullScreen);
     }
     if (widget.autoPlayVideoAfterInit) {
-      controller?.play();
+      await controller?.play();
     }
     widget.onVideoInitCompleted?.call(controller!);
   }
 
-  void listener() async {
+  Future<void> listener() async {
     if (widget.videoStyle.showLiveDirectButton) {
       if (controller?.value.position != controller?.value.duration) {
         if (isAtLivePosition) {
@@ -920,7 +925,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
   void videoInit(String? url) {
     if (isOffline == false) {
-      if (playType == "MP4" || playType == "WEBM") {
+      if (playType == 'MP4' || playType == 'WEBM') {
         // Play MP4 and WEBM video
         controller = VideoPlayerController.networkUrl(
           Uri.parse(url!),
@@ -929,7 +934,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           closedCaptionFile: widget.closedCaptionFile,
           videoPlayerOptions: widget.videoPlayerOptions,
         )..initialize().then((value) => seekToLastPlayingPosition);
-      } else if (playType == "MKV") {
+      } else if (playType == 'MKV') {
         controller = VideoPlayerController.networkUrl(
           Uri.parse(url!),
           formatHint: VideoFormat.dash,
@@ -937,7 +942,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           closedCaptionFile: widget.closedCaptionFile,
           videoPlayerOptions: widget.videoPlayerOptions,
         )..initialize().then((value) => seekToLastPlayingPosition);
-      } else if (playType == "HLS") {
+      } else if (playType == 'HLS') {
         controller = VideoPlayerController.networkUrl(
           Uri.parse(url!),
           formatHint: VideoFormat.hls,
@@ -966,10 +971,10 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     }
   }
 
-  void onSelectQuality(M3U8Data data) async {
+  Future<void> onSelectQuality(M3U8Data data) async {
     lastPlayedPos = await controller?.position;
-    if (data.dataQuality == "Auto") {
-      videoControlSetup(data.dataURL);
+    if (data.dataQuality == 'Auto') {
+      await videoControlSetup(data.dataURL);
     } else {
       try {
         if (data.dataURL != null) {
@@ -977,7 +982,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         }
       } catch (e) {
         if (kDebugMode) {
-          print("Error: $e");
+          print('Error: $e');
         }
       }
     }
@@ -1002,13 +1007,14 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     controller?.play();
   }
 
-  void m3u8Clean() async {
-    for (int i = 2; i < m3u8UrlList.length; i++) {
+  Future<void> m3u8Clean() async {
+    for (var i = 2; i < m3u8UrlList.length; i++) {
       try {
-        var file = await FileUtils.readFileFromPath(
-            videoUrl: m3u8UrlList[i].dataURL ?? '',
-            quality: m3u8UrlList[i].dataQuality ?? '');
-        var exists = await file?.exists();
+        final file = await FileUtils.readFileFromPath(
+          videoUrl: m3u8UrlList[i].dataURL ?? '',
+          quality: m3u8UrlList[i].dataQuality ?? '',
+        );
+        final exists = file?.existsSync();
         if (exists ?? false) {
           await file?.delete();
         }
@@ -1058,139 +1064,115 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     }
   }
 
-  Future showSettingsDialog(BuildContext context) {
+  Future<void> showSettingsDialog(BuildContext context) {
     return showModalBottomSheet(
-        backgroundColor: Colors.red,
-        isDismissible: true,
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(10.0),
-            topRight: Radius.circular(10.0),
-          ),
+      backgroundColor: Colors.red,
+      isDismissible: true,
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(10),
+          topRight: Radius.circular(10),
         ),
-        builder: (context) {
-          duration = controller?.value.duration;
-          return Material(
-            color: Colors.white,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(10.0),
-                topRight: Radius.circular(10.0),
-              ),
+      ),
+      builder: (context) {
+        duration = controller?.value.duration;
+        return Material(
+          color: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(10),
+              topRight: Radius.circular(10),
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 10),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10),
-                    child: Row(
-                      children: [
-                        const Text(
-                          'Settings',
-                          style: TextStyle(
-                            fontSize: 18.0,
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                          ),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Settings',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.close,
-                            color: Colors.black,
-                          ),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  Divider(
-                    color: Colors.grey[100],
-                    height: 1,
-                  ),
-                  const SizedBox(height: 10),
-                  if (!hideQualityList)
-                    VideoQualityPicker(
-                      videoData: m3u8UrlList,
-                      videoStyle: widget.videoStyle,
-                      showPicker: true,
-                      onQualitySelected: (data) {
-                        if (data.dataQuality != m3u8Quality) {
-                          setState(() {
-                            m3u8Quality = data.dataQuality ?? m3u8Quality;
-                          });
-                          onSelectQuality(data);
-                        }
-                        setState(() {
-                          m3u8Show = false;
-                        });
-                        Navigator.pop(context);
-                      },
-                      selectedQuality: m3u8Quality,
-                    ),
-                  const SizedBox(height: 10),
-                  PlaybackSpeedSlider(
-                    speeds: playbackSpeeds,
-                    currentSpeed: playbackSpeed,
-                    onSpeedChanged: (speed) {
-                      setPlaybackSpeed(speed);
-                      onPlayBackSpeedChange(speed: speed);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  ListTile(
-                    leading: Icon(
-                      loop ? Icons.repeat_one : Icons.repeat,
-                      size: 20,
-                      color: Colors.black87,
-                    ),
-                    title: const Text(
-                      "Loop Video",
-                      style: TextStyle(
-                        fontSize: 14.0,
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                    trailing: Switch(
-                      value: loop,
-                      activeColor: const Color(0xfff70808),
-                      onChanged: (val) {
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.black,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(
+                  color: Colors.grey[100],
+                  height: 1,
+                ),
+                const SizedBox(height: 10),
+                if (!hideQualityList)
+                  VideoQualityPicker(
+                    videoData: m3u8UrlList,
+                    videoStyle: widget.videoStyle,
+                    showPicker: true,
+                    onQualitySelected: (data) {
+                      if (data.dataQuality != m3u8Quality) {
                         setState(() {
-                          loop = val;
-                          if (controller?.value.isPlaying == true) {
-                            controller?.pause();
-                            controller?.setLooping(loop);
-                            controller?.play();
-                          } else {
-                            controller?.setLooping(loop);
-                          }
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content:
-                                  Text("Video loop is ${loop ? 'on' : 'off'}"),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
+                          m3u8Quality = data.dataQuality ?? m3u8Quality;
                         });
-
-                        Navigator.pop(context);
-                      },
-                    ),
-                    onTap: () {
-                      // Optional: toggle also on tap (in addition to switch)
+                        onSelectQuality(data);
+                      }
                       setState(() {
-                        loop = !loop;
+                        m3u8Show = false;
+                      });
+                      Navigator.pop(context);
+                    },
+                    selectedQuality: m3u8Quality,
+                  ),
+                const SizedBox(height: 10),
+                PlaybackSpeedSlider(
+                  speeds: playbackSpeeds,
+                  currentSpeed: playbackSpeed,
+                  onSpeedChanged: (speed) {
+                    setPlaybackSpeed(speed);
+                    onPlayBackSpeedChange(speed: speed);
+                  },
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  leading: Icon(
+                    loop ? Icons.repeat_one : Icons.repeat,
+                    size: 20,
+                    color: Colors.black87,
+                  ),
+                  title: const Text(
+                    'Loop Video',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                  trailing: Switch(
+                    value: loop,
+                    activeColor: const Color(0xfff70808),
+                    onChanged: (val) {
+                      setState(() {
+                        loop = val;
                         if (controller?.value.isPlaying == true) {
                           controller?.pause();
                           controller?.setLooping(loop);
@@ -1211,21 +1193,45 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                       Navigator.pop(context);
                     },
                   ),
-                  AmbientModeSettings(
-                    value: isAmbientMode,
-                    onChanged: ({bool? value}) {
-                      setState(() {
-                        isAmbientMode = value ?? false;
-                      });
-                      widget.onAmbientModeChanged?.call(value ?? false);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                ],
-              ),
+                  onTap: () {
+                    // Optional: toggle also on tap (in addition to switch)
+                    setState(() {
+                      loop = !loop;
+                      if (controller?.value.isPlaying == true) {
+                        controller?.pause();
+                        controller?.setLooping(loop);
+                        controller?.play();
+                      } else {
+                        controller?.setLooping(loop);
+                      }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Video loop is ${loop ? 'on' : 'off'}"),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    });
+
+                    Navigator.pop(context);
+                  },
+                ),
+                AmbientModeSettings(
+                  value: isAmbientMode,
+                  onChanged: ({bool? value}) {
+                    setState(() {
+                      isAmbientMode = value ?? false;
+                    });
+                    widget.onAmbientModeChanged?.call(value ?? false);
+                  },
+                ),
+                const SizedBox(height: 10),
+              ],
             ),
-          );
-        });
+          ),
+        );
+      },
+    );
   }
 
   void removeOverlay() {
