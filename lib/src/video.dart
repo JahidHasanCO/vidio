@@ -13,6 +13,7 @@ import 'package:vidio/src/utils/utils.dart';
 import 'package:vidio/src/widgets/ambient_mode_settings.dart';
 import 'package:vidio/src/widgets/playback_speed_slider.dart';
 import 'package:vidio/src/widgets/player_bottom_bar.dart';
+import 'package:vidio/src/widgets/unlock_button.dart';
 import 'package:vidio/src/widgets/video_loading.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
 import 'package:vidio/vidio.dart';
@@ -206,8 +207,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                     },
                     onDoubleTapDown: (TapDownDetails details) {
                       if (controller == null || isLocked) return;
-
-                      final box = context.findRenderObject() as RenderBox;
+                      final box = context.findRenderObject() as RenderBox?;
+                      if (box == null) return;
                       final localPosition =
                           box.globalToLocal(details.globalPosition);
                       final width = box.size.width;
@@ -275,7 +276,16 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                     ),
                   ),
                   if (!isLocked) ...videoBuiltInChildren(),
-                  if (isLocked) unlockButton(),
+                  if (isLocked)
+                    UnlockButton(
+                      isLocked: isLocked,
+                      showMenu: showMenu,
+                      onUnlock: () {
+                        setState(() {
+                          isLocked = !isLocked;
+                        });
+                      },
+                    ),
                 ],
               ),
       ),
@@ -290,41 +300,6 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       bottomBar(),
       _miniProgress(),
     ];
-  }
-
-  Widget unlockButton() {
-    return Visibility(
-      visible: isLocked && showMenu,
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: TextButton.icon(
-            onPressed: () {
-              setState(() {
-                isLocked = !isLocked;
-              });
-            },
-            style: TextButton.styleFrom(
-              backgroundColor: Colors.black.withOpacity(0.5),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 10,
-              ),
-            ),
-            icon: const Icon(Icons.lock, color: Colors.white),
-            label: const Text(
-              'Unlock',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _miniProgress() {
