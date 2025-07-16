@@ -14,7 +14,7 @@ extension VideoControllerExtension on VideoPlayerController {
     if (value.position.inSeconds > 10) {
       return seekTo(Duration(seconds: value.position.inSeconds - 10));
     } else {
-      return seekTo(const Duration(seconds: 0));
+      return seekTo(Duration.zero);
     }
   }
 }

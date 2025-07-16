@@ -13,10 +13,10 @@ class FileUtils {
     void Function(File? file)? onSaveCompleted,
     void Function(dynamic err)? onSaveFailed,
   }) {
-    http.Client client = http.Client();
+    final client = http.Client();
     client.get(Uri.parse(videoUrl), headers: headers).then((response) {
       if (response.statusCode == 200) {
-        var fileName = _getFileNameFromUrl(videoUrl);
+        final fileName = _getFileNameFromUrl(videoUrl);
         _writeFile(
           response: response,
           fileExtension: fileExtension,
@@ -25,14 +25,15 @@ class FileUtils {
           fileName: fileName,
         );
       }
-    }).catchError((err) {
+    }).catchError((dynamic err) {
       onSaveFailed?.call(err);
     });
   }
 
-  /// Method to write the downloaded video into device local storage using [writeAsBytes] method
+  /// Method to write the downloaded video into device local
+  /// storage using [writeAsBytes] method
   /// from [File]'s object.
-  static void _writeFile({
+  static Future<void> _writeFile({
     required http.Response response,
     String? fileExtension,
     void Function(File file)? onSaveCompleted,
@@ -47,13 +48,12 @@ class FileUtils {
     }
 
     if (dir != null) {
-      File file = File(
+      final file = File(
         '${dir.path}/${(fileName != null && fileName.isNotEmpty) ? fileName : DateTime.now().millisecondsSinceEpoch}.${fileExtension ?? 'm3u8'}',
       );
       await file.writeAsBytes(response.bodyBytes).then((f) async {
-        print('Write file success');
         onSaveCompleted?.call(f);
-      }).catchError((err) {
+      }).catchError((dynamic err) {
         onSaveFailed?.call(err);
       });
     }
@@ -68,7 +68,8 @@ class FileUtils {
     return '';
   }
 
-  /// Method to write the downloaded video into device local storage using [writeAsString] method
+  /// Method to write the downloaded video into device local storage using
+  /// [writeAsString] method
   /// from [File]'s object.
   static Future<File> cacheFileUsingWriteAsString({
     required String contents,
@@ -83,12 +84,12 @@ class FileUtils {
       directory = await getApplicationDocumentsDirectory();
     }
 
-    final File file = File(
-        '${directory?.path ?? ''}/yoyo_${name.isNotEmpty ? '${name}_' : name}$quality.m3u8');
-    return await file.writeAsString(contents).then((f) {
+    final file = File(
+      '${directory?.path ?? ''}/yoyo_${name.isNotEmpty ? '${name}_' : name}$quality.m3u8',
+    );
+    return file.writeAsString(contents).then((f) {
       return f;
     }).catchError((err) {
-      print('Write file error $err');
       return File('');
     });
   }
@@ -107,11 +108,11 @@ class FileUtils {
       directory = await getApplicationDocumentsDirectory();
     }
 
-    final File file = File(
+    final file = File(
       '${directory?.path ?? ''}/yoyo_${name.isNotEmpty ? '${name}_' : name}$quality.m3u8',
     );
 
-    var exists = await file.exists();
+    final exists = file.existsSync();
     if (exists) return file;
 
     return null;

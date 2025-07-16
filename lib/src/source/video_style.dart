@@ -4,6 +4,51 @@ import 'package:video_player/video_player.dart';
 
 /// Video player custom style model
 class VideoStyle {
+  /// Constructor
+  const VideoStyle({
+    this.playIcon,
+    this.pauseIcon,
+    this.fullscreenIcon,
+    this.forwardIcon,
+    this.backwardIcon,
+    this.qualityStyle = const TextStyle(color: Colors.white),
+    this.qualityOptionStyle = const TextStyle(color: Colors.white),
+    this.videoDurationStyle,
+    this.videoSeekStyle,
+    this.videoDurationsPadding,
+    this.progressIndicatorPadding,
+    this.progressIndicatorColors,
+    this.allowScrubbing,
+    this.playButtonIconColor,
+    this.playButtonIconSize,
+    this.spaceBetweenBottomBarButtons = 8.0,
+    this.actionBarBgColor,
+    this.actionBarPadding,
+    this.qualityOptionsBgColor,
+    this.qualityOptionsMargin,
+    this.qualityOptionsPadding,
+    this.qualityOptionsRadius,
+    this.qualityButtonAndFullScrIcoSpace = 8.0,
+    this.forwardAndBackwardBtSize,
+    this.backwardIconColor = Colors.white,
+    this.forwardIconColor = Colors.white,
+    this.bottomBarPadding = EdgeInsets.zero,
+    this.videoQualityBgColor,
+    this.videoQualityRadius,
+    this.videoQualityPadding,
+    this.qualityOptionWidth = 90.0,
+    this.fullScreenIconSize = 30.0,
+    this.fullScreenIconColor = Colors.white,
+    this.showLiveDirectButton = false,
+    this.liveDirectButtonText,
+    this.liveDirectButtonTextStyle,
+    this.liveDirectButtonColor = Colors.red,
+    this.liveDirectButtonDisableColor = Colors.grey,
+    this.liveDirectButtonSize = 10,
+    this.enableSystemOrientationsOverride = true,
+    this.orientation,
+  });
+
   /// Custom play icon for play button.
   final Widget? playIcon;
 
@@ -150,49 +195,4 @@ class VideoStyle {
   /// The empty list causes the application to defer to the operating system
   /// default.
   final List<DeviceOrientation>? orientation;
-
-  /// Constructor
-  const VideoStyle({
-    this.playIcon,
-    this.pauseIcon,
-    this.fullscreenIcon,
-    this.forwardIcon,
-    this.backwardIcon,
-    this.qualityStyle = const TextStyle(color: Colors.white),
-    this.qualityOptionStyle = const TextStyle(color: Colors.white),
-    this.videoDurationStyle,
-    this.videoSeekStyle,
-    this.videoDurationsPadding,
-    this.progressIndicatorPadding,
-    this.progressIndicatorColors,
-    this.allowScrubbing,
-    this.playButtonIconColor,
-    this.playButtonIconSize,
-    this.spaceBetweenBottomBarButtons = 8.0,
-    this.actionBarBgColor,
-    this.actionBarPadding,
-    this.qualityOptionsBgColor,
-    this.qualityOptionsMargin,
-    this.qualityOptionsPadding,
-    this.qualityOptionsRadius,
-    this.qualityButtonAndFullScrIcoSpace = 8.0,
-    this.forwardAndBackwardBtSize,
-    this.backwardIconColor = Colors.white,
-    this.forwardIconColor = Colors.white,
-    this.bottomBarPadding = const EdgeInsets.symmetric(horizontal: 0.0),
-    this.videoQualityBgColor,
-    this.videoQualityRadius,
-    this.videoQualityPadding,
-    this.qualityOptionWidth = 90.0,
-    this.fullScreenIconSize = 30.0,
-    this.fullScreenIconColor = Colors.white,
-    this.showLiveDirectButton = false,
-    this.liveDirectButtonText,
-    this.liveDirectButtonTextStyle,
-    this.liveDirectButtonColor = Colors.red,
-    this.liveDirectButtonDisableColor = Colors.grey,
-    this.liveDirectButtonSize = 10,
-    this.enableSystemOrientationsOverride = true,
-    this.orientation,
-  });
 }

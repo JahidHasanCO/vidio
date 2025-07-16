@@ -2,33 +2,33 @@
 class RegexResponse {
   /// regexMAIN
   static const String regexMAIN =
-      r"^#EXT-X-STREAM-INF:(?:.*,RESOLUTION=(\d+x\d+))?:.*,\r?\n(.*)";
+      r'^#EXT-X-STREAM-INF:(?:.*,RESOLUTION=(\d+x\d+))?:.*,\r?\n(.*)';
 
   /// regexMEDIA
   static const String regexMEDIA =
-      r"""^#EXT-X-MEDIA:TYPE=AUDIO(?:.*,URI="(.*m3u8)")""";
+      '''^#EXT-X-MEDIA:TYPE=AUDIO(?:.*,URI="(.*m3u8)")''';
 
   /// regexAUDIO
-  static const String regexAUDIO = "";
+  static const String regexAUDIO = '';
 
   /// regexSUBTITLE
-  static const String regexSUBTITLE = "";
+  static const String regexSUBTITLE = '';
 
   /// regexSRT
   static const String regexSRT =
-      r"^((\d{2}):(\d{2}):(\d{2}),(\d{3})) +--> +((\d{2}):(\d{2}):(\d{2}),(\d{2})).*[\r\n]+\s*((?:(?!\r?\n\r?).)*)";
+      r'^((\d{2}):(\d{2}):(\d{2}),(\d{3})) +--> +((\d{2}):(\d{2}):(\d{2}),(\d{2})).*[\r\n]+\s*((?:(?!\r?\n\r?).)*)';
 
   /// regexASS
-  static const String regexASS = "";
+  static const String regexASS = '';
 
   /// regexVTT
-  static const String regexVTT = "";
+  static const String regexVTT = '';
 
   /// regexSTREAM
-  static const String regexSTREAM = "";
+  static const String regexSTREAM = '';
 
   /// regexFILE
-  static const String regexFILE = "";
+  static const String regexFILE = '';
 
   /// regexHTTP
   static const String regexHTTP = r'^(http|https):\/\/([\w.]+\/?)\S*';
@@ -38,5 +38,5 @@ class RegexResponse {
 
   /// regexM3U8Resolution
   static const String regexM3U8Resolution =
-      r"#EXT-X-STREAM-INF:(?:.*,RESOLUTION=(\d+x\d+))?,?(.*)\r?\n(.*)";
+      r'#EXT-X-STREAM-INF:(?:.*,RESOLUTION=(\d+x\d+))?,?(.*)\r?\n(.*)';
 }

@@ -2,6 +2,23 @@ import 'package:flutter/material.dart';
 
 /// A model to provide the custom values for the loading video widget
 class VideoLoadingStyle {
+  /// Constructor
+  const VideoLoadingStyle({
+    this.loading,
+    this.loadingText,
+    this.loadingTextStyle,
+    this.loadingIndicatorValueColor,
+    this.loadingBackgroundColor,
+    this.loadingIndicatorBgColor,
+    this.loadingIndicatorColor,
+    this.loadingIndicatorWidth = 4.0,
+    this.indicatorSemanticsLabel,
+    this.indicatorSemanticsValue,
+    this.indicatorInitialValue,
+    this.spaceBetweenIndicatorAndText = 8.0,
+    this.showLoadingText = true,
+  });
+
   /// A custom loading widget to replace the default loading widget.
   final Widget? loading;
 
@@ -51,21 +68,4 @@ class VideoLoadingStyle {
   /// If you want to show both the loading indicator and the loading text you can set this property to [true]
   /// and [false] to show the loading indicator only.
   final bool showLoadingText;
-
-  /// Constructor
-  const VideoLoadingStyle({
-    this.loading,
-    this.loadingText,
-    this.loadingTextStyle,
-    this.loadingIndicatorValueColor,
-    this.loadingBackgroundColor,
-    this.loadingIndicatorBgColor,
-    this.loadingIndicatorColor,
-    this.loadingIndicatorWidth = 4.0,
-    this.indicatorSemanticsLabel,
-    this.indicatorSemanticsValue,
-    this.indicatorInitialValue,
-    this.spaceBetweenIndicatorAndText = 8.0,
-    this.showLoadingText = true,
-  });
 }
