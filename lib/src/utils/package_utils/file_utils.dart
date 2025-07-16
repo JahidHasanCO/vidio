@@ -17,7 +17,6 @@ class FileUtils {
     client.get(Uri.parse(videoUrl), headers: headers).then((response) {
       if (response.statusCode == 200) {
         var fileName = _getFileNameFromUrl(videoUrl);
-
         _writeFile(
           response: response,
           fileExtension: fileExtension,
@@ -77,7 +76,6 @@ class FileUtils {
     required String videoUrl,
   }) async {
     final name = _getFileNameFromUrl(videoUrl);
-    // var directory = await getApplicationDocumentsDirectory();
     Directory? directory;
     if (Platform.isAndroid) {
       directory = await getExternalStorageDirectory();
@@ -101,7 +99,6 @@ class FileUtils {
     required String quality,
   }) async {
     final name = _getFileNameFromUrl(videoUrl);
-    // var directory = await getApplicationDocumentsDirectory();
     Directory? directory;
 
     if (Platform.isAndroid) {
