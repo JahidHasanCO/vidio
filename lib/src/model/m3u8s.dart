@@ -1,4 +1,4 @@
-import 'package:ns_player/src/model/m3u8.dart';
+import 'package:vidio/src/model/m3u8.dart';
 
 /// A model that contains a list of m3u8 stream data.
 class M3U8s {

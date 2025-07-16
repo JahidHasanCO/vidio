@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:ns_player/ns_player.dart';
+import 'package:vidio/vidio.dart';
 
 void main() => runApp(const MyApp());
 
@@ -28,7 +28,7 @@ class MyAppState extends State<MyApp> {
           padding: fullscreen
               ? EdgeInsets.zero
               : const EdgeInsets.only(top: 32.0),
-          child: NsPlayer(
+          child: Vidio(
             aspectRatio: 16 / 9,
             url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
             headers: const {'Referer': 'https://www.google.com'},

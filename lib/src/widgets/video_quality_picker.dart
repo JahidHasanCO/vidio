@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:ns_player/ns_player.dart';
-import 'package:ns_player/src/model/m3u8.dart';
+import 'package:vidio/vidio.dart';
+import 'package:vidio/src/model/m3u8.dart';
 
 class VideoQualityPicker extends StatelessWidget {
   final List<M3U8Data> videoData;

@@ -45,7 +45,7 @@ class AmbientModeSettings extends StatelessWidget {
         ),
         Center(
           child: Image.asset(
-            'packages/ns_player/assets/images/ambient.png',
+            'packages/vidio/assets/images/ambient.png',
             width: 120,
             height: 120,
             fit: BoxFit.contain,

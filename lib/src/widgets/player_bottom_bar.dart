@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:ns_player/ns_player.dart';
-import 'package:ns_player/src/utils/extensions/video_controller_extensions.dart';
-import 'package:ns_player/src/widgets/seek_button.dart';
-import 'package:ns_player/src/widgets/seek_slider.dart';
+import 'package:vidio/vidio.dart';
+import 'package:vidio/src/utils/extensions/video_controller_extensions.dart';
+import 'package:vidio/src/widgets/seek_button.dart';
+import 'package:vidio/src/widgets/seek_slider.dart';
 import 'package:video_player/video_player.dart';
 
 class PlayerBottomBar extends StatefulWidget {
@@ -75,7 +75,7 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                             isForward: false,
                             icon: widget.videoStyle.backwardIcon ??
                                 SvgPicture.asset(
-                                  'packages/ns_player/assets/icons/rewind.svg',
+                                  'packages/vidio/assets/icons/rewind.svg',
                                   width: widget
                                       .videoStyle.forwardAndBackwardBtSize,
                                   height: widget
@@ -119,8 +119,8 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                                         padding: const EdgeInsets.all(4),
                                         child: SvgPicture.asset(
                                           widget.controller.value.isPlaying
-                                              ? 'packages/ns_player/assets/icons/pause.svg'
-                                              : 'packages/ns_player/assets/icons/play.svg',
+                                              ? 'packages/vidio/assets/icons/pause.svg'
+                                              : 'packages/vidio/assets/icons/play.svg',
                                           width: widget
                                               .videoStyle.playButtonIconSize,
                                           height: widget
@@ -160,7 +160,7 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                             isForward: true,
                             icon: widget.videoStyle.forwardIcon ??
                                 SvgPicture.asset(
-                                  'packages/ns_player/assets/icons/forward.svg',
+                                  'packages/vidio/assets/icons/forward.svg',
                                   width: widget
                                       .videoStyle.forwardAndBackwardBtSize,
                                   height: widget
@@ -219,7 +219,7 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                               child: Padding(
                                 padding: const EdgeInsets.only(right: 10.0),
                                 child: SvgPicture.asset(
-                                  'packages/ns_player/assets/icons/pip.svg',
+                                  'packages/vidio/assets/icons/pip.svg',
                                   width: 26,
                                   height: 26,
                                   fit: BoxFit.contain,
@@ -240,8 +240,8 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                                 child: widget.videoStyle.fullscreenIcon ??
                                     SvgPicture.asset(
                                       widget.fullScreen
-                                          ? 'packages/ns_player/assets/icons/minimize.svg'
-                                          : 'packages/ns_player/assets/icons/maximize.svg',
+                                          ? 'packages/vidio/assets/icons/minimize.svg'
+                                          : 'packages/vidio/assets/icons/maximize.svg',
                                       width:
                                           widget.videoStyle.fullScreenIconSize,
                                       height:

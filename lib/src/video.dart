@@ -5,19 +5,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
-import 'package:ns_player/ns_player.dart';
-import 'package:ns_player/src/model/models.dart';
-import 'package:ns_player/src/utils/utils.dart';
-import 'package:ns_player/src/widgets/ambient_mode_settings.dart';
-import 'package:ns_player/src/widgets/playback_speed_slider.dart';
-import 'package:ns_player/src/widgets/video_loading.dart';
-import 'package:ns_player/src/widgets/video_quality_picker.dart';
-import 'package:ns_player/src/widgets/player_bottom_bar.dart';
+import 'package:vidio/vidio.dart';
+import 'package:vidio/src/model/models.dart';
+import 'package:vidio/src/utils/utils.dart';
+import 'package:vidio/src/widgets/ambient_mode_settings.dart';
+import 'package:vidio/src/widgets/playback_speed_slider.dart';
+import 'package:vidio/src/widgets/video_loading.dart';
+import 'package:vidio/src/widgets/video_quality_picker.dart';
+import 'package:vidio/src/widgets/player_bottom_bar.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'responses/regex_response.dart';
 
-class NsPlayer extends StatefulWidget {
+class Vidio extends StatefulWidget {
   final String url;
   final VideoStyle videoStyle;
   final VideoLoadingStyle videoLoadingStyle;
@@ -55,7 +55,7 @@ class NsPlayer extends StatefulWidget {
   final ValueChanged<double>? onPlaybackSpeedChanged;
   final bool showMiniProgress;
 
-  const NsPlayer({
+  const Vidio({
     super.key,
     required this.url,
     this.aspectRatio = 16 / 9,
@@ -96,10 +96,10 @@ class NsPlayer extends StatefulWidget {
   });
 
   @override
-  State<NsPlayer> createState() => _NsPlayerState();
+  State<Vidio> createState() => _VidioState();
 }
 
-class _NsPlayerState extends State<NsPlayer>
+class _VidioState extends State<Vidio>
     with SingleTickerProviderStateMixin {
   String? playType;
   bool loop = false;
@@ -149,7 +149,7 @@ class _NsPlayerState extends State<NsPlayer>
   }
 
   @override
-  void didUpdateWidget(covariant NsPlayer oldWidget) {
+  void didUpdateWidget(covariant Vidio oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.playbackSpeed != oldWidget.playbackSpeed &&
         widget.playbackSpeed != playbackSpeed) {
@@ -447,7 +447,7 @@ class _NsPlayerState extends State<NsPlayer>
                       margin:
                           fullScreen ? const EdgeInsets.only(top: 10) : null,
                       child: SvgPicture.asset(
-                        'packages/ns_player/assets/icons/playlist.svg',
+                        'packages/vidio/assets/icons/playlist.svg',
                         width: 24,
                         height: 24,
                         fit: BoxFit.scaleDown,

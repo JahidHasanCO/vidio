@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:ns_player/src/widgets/bordered_thumb_shape.dart';
-import 'package:ns_player/src/widgets/uniform_rounded_track_shape.dart';
+import 'package:vidio/src/widgets/bordered_thumb_shape.dart';
+import 'package:vidio/src/widgets/uniform_rounded_track_shape.dart';
 import 'package:video_player/video_player.dart';
 
 class SeekSlider extends StatefulWidget {

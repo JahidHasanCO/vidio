@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ns_player/ns_player.dart';
+import 'package:vidio/vidio.dart';
 
 /// A widget to display the video's current selected quality type.
 class VideoQualityWidget extends StatelessWidget {
