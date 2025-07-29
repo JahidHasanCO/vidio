@@ -395,25 +395,13 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                       }
                     },
                     child: Container(
+                      height: 50,
                       width: 50,
                       margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.support_agent,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Support',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+                      child: const Icon(
+                        Icons.support_agent,
+                        color: Colors.white,
+                        size: 24,
                       ),
                     ),
                   ),
