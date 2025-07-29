@@ -58,6 +58,8 @@ class Vidio extends StatefulWidget {
     this.playbackSpeed = 1.0,
     this.onPlaybackSpeedChanged,
     this.showMiniProgress = false,
+    this.isShowSupportButton = false,
+    this.onSupportButtonTap,
   });
   final String url;
   final VideoStyle videoStyle;
@@ -95,6 +97,8 @@ class Vidio extends StatefulWidget {
   final double playbackSpeed;
   final ValueChanged<double>? onPlaybackSpeedChanged;
   final bool showMiniProgress;
+  final bool isShowSupportButton;
+  final void Function()? onSupportButtonTap;
 
   @override
   State<Vidio> createState() => _VidioState();
@@ -151,8 +155,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(covariant Vidio oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.playbackSpeed != oldWidget.playbackSpeed &&
-        widget.playbackSpeed != playbackSpeed) {
+    if (widget.playbackSpeed != oldWidget.playbackSpeed && widget.playbackSpeed != playbackSpeed) {
       setPlaybackSpeed(widget.playbackSpeed, notify: false);
     }
   }
@@ -168,10 +171,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    controlTopBarAnimation = Tween<double>(begin: -(36.0 + 0.0 * 2), end: 0)
-        .animate(controlBarAnimationController);
-    controlBottomBarAnimation = Tween<double>(begin: -(36.0 + 0.0 * 2), end: 0)
-        .animate(controlBarAnimationController);
+    controlTopBarAnimation = Tween<double>(begin: -(36.0 + 0.0 * 2), end: 0).animate(controlBarAnimationController);
+    controlBottomBarAnimation = Tween<double>(begin: -(36.0 + 0.0 * 2), end: 0).animate(controlBarAnimationController);
   }
 
   @override
@@ -209,19 +210,16 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                       if (controller == null || isLocked) return;
                       final box = context.findRenderObject() as RenderBox?;
                       if (box == null) return;
-                      final localPosition =
-                          box.globalToLocal(details.globalPosition);
+                      final localPosition = box.globalToLocal(details.globalPosition);
                       final width = box.size.width;
 
                       if (localPosition.dx < width / 3) {
                         controller!.rewind().then(
-                              (value) =>
-                                  widget.onRewind?.call(controller!.value),
+                              (value) => widget.onRewind?.call(controller!.value),
                             );
                       } else if (localPosition.dx > (2 * width) / 3) {
                         controller!.fastForward().then(
-                              (value) =>
-                                  widget.onRewind?.call(controller!.value),
+                              (value) => widget.onRewind?.call(controller!.value),
                             );
                       } else {
                         togglePlay();
@@ -248,14 +246,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                     },
                     child: Container(
                       foregroundDecoration: BoxDecoration(
-                        color: showMenu && !isLocked
-                            ? Colors.black.withOpacity(0.35)
-                            : Colors.transparent,
+                        color: showMenu && !isLocked ? Colors.black.withOpacity(0.35) : Colors.transparent,
                       ),
                       child: controller == null
                           ? const SizedBox.shrink()
-                          : widget.allowRepaintBoundary &&
-                                  widget.repaintBoundaryKey != null
+                          : widget.allowRepaintBoundary && widget.repaintBoundaryKey != null
                               ? RepaintBoundary(
                                   key: widget.repaintBoundaryKey,
                                   child: InteractiveViewer(
@@ -389,6 +384,29 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                 if (fullScreen) ...[
                   InkWell(
                     onTap: () {
+                      if (widget.onSupportButtonTap != null) {
+                        if (showMenu && mounted) {
+                          setState(() {
+                            showMenu = false;
+                            removeOverlay();
+                          });
+                        }
+                        widget.onSupportButtonTap?.call();
+                      }
+                    },
+                    child: Container(
+                      height: 50,
+                      width: 50,
+                      margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
+                      child: const Icon(
+                        Icons.support_agent,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () {
                       setState(() {
                         isLocked = !isLocked;
                       });
@@ -396,8 +414,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                     child: Container(
                       height: 50,
                       width: 50,
-                      margin:
-                          fullScreen ? const EdgeInsets.only(top: 10) : null,
+                      margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
                       child: const Icon(
                         Icons.lock_open_sharp,
                         color: Colors.white,
@@ -420,8 +437,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                     child: Container(
                       height: 50,
                       width: 50,
-                      margin:
-                          fullScreen ? const EdgeInsets.only(top: 10) : null,
+                      margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
                       child: SvgPicture.asset(
                         'packages/vidio/assets/icons/playlist.svg',
                         width: 24,
@@ -528,16 +544,13 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                     height: widget.videoStyle.liveDirectButtonSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isAtLivePosition
-                          ? widget.videoStyle.liveDirectButtonColor
-                          : widget.videoStyle.liveDirectButtonDisableColor,
+                      color: isAtLivePosition ? widget.videoStyle.liveDirectButtonColor : widget.videoStyle.liveDirectButtonDisableColor,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     widget.videoStyle.liveDirectButtonText ?? 'Live',
-                    style: widget.videoStyle.liveDirectButtonTextStyle ??
-                        const TextStyle(color: Colors.white, fontSize: 16),
+                    style: widget.videoStyle.liveDirectButtonTextStyle ?? const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ],
               ),
@@ -549,8 +562,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   }
 
   Widget m3u8List() {
-    final renderBox =
-        videoQualityKey.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox = videoQualityKey.currentContext?.findRenderObject() as RenderBox?;
     final offset = renderBox?.localToGlobal(Offset.zero);
     return VideoQualityPicker(
       videoData: m3u8UrlList,
@@ -727,8 +739,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
             var audio = '';
             if (audioList.isNotEmpty) {
-              audio =
-                  '''#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio-medium",NAME="audio",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="2",
+              audio = '''#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio-medium",NAME="audio",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="2",
                   URI="${audioList.last.url}"\n''';
             } else {
               audio = '';
@@ -737,8 +748,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
             if (widget.allowCacheFile) {
               try {
                 final file = await FileUtils.cacheFileUsingWriteAsString(
-                  contents:
-                      '''#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n$audio#EXT-X-STREAM-INF:CLOSED-CAPTIONS=NONE,BANDWIDTH=1469712,
+                  contents: '''#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n$audio#EXT-X-STREAM-INF:CLOSED-CAPTIONS=NONE,BANDWIDTH=1469712,
                   RESOLUTION=$quality,FRAME-RATE=30.000\n$url''',
                   quality: quality,
                   videoUrl: url,
@@ -751,8 +761,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                 }
 
                 if (widget.allowCacheFile && index == matches.length) {
-                  widget.onCacheFileCompleted
-                      ?.call(cachedFiles.isEmpty ? null : cachedFiles);
+                  widget.onCacheFileCompleted?.call(cachedFiles.isEmpty ? null : cachedFiles);
                 }
               } catch (e) {
                 widget.onCacheFileFailed?.call(e);
@@ -814,8 +823,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       }
     }
 
-    if (controller?.value.isInitialized == true &&
-        controller?.value.isPlaying == true) {
+    if (controller?.value.isInitialized == true && controller?.value.isPlaying == true) {
       if (!await WakelockPlus.enabled) {
         await WakelockPlus.enable();
       }
@@ -1158,8 +1166,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content:
-                                Text("Video loop is ${loop ? 'on' : 'off'}"),
+                            content: Text("Video loop is ${loop ? 'on' : 'off'}"),
                             duration: const Duration(seconds: 2),
                           ),
                         );
