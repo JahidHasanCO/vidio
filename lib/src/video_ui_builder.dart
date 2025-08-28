@@ -13,12 +13,17 @@ import 'package:vidio/src/widgets/video_loading.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
 
 import 'widgets/ambient_mode_settings.dart';
+import 'widgets/caching_progress_widget.dart';
+import 'widgets/caching_progress_overlay.dart';
 
 /// Builds UI components for the video player
 class VideoUIBuilder {
   /// Builds the loading state widget
-  static Widget buildLoadingState(VideoLoadingStyle loadingStyle) {
-    return VideoLoading(loadingStyle: loadingStyle);
+  static Widget buildLoadingState(VideoLoadingStyle loadingStyle, [CachingProgressData? cachingProgress]) {
+    return VideoLoading(
+      loadingStyle: loadingStyle,
+      cachingProgress: cachingProgress,
+    );
   }
 
   /// Builds the main video player stack
@@ -191,6 +196,7 @@ class VideoUIBuilder {
     required void Function() onFullScreen,
     required void Function()? onFullScreenIconTap,
     required void Function()? onPIPIconTap,
+    CachingProgressData? cachingProgress,
   }) {
     if (controller == null) {
       return const SizedBox.shrink();
@@ -213,6 +219,7 @@ class VideoUIBuilder {
           onFullScreenIconTap: onFullScreenIconTap,
           hidePipButton: hidePIPButton ?? true,
           onPipMode: onPIPIconTap,
+          cachingProgress: cachingProgress,
         ),
       ),
     );
@@ -224,6 +231,7 @@ class VideoUIBuilder {
     required bool fullScreen,
     required bool showMiniProgress,
     required VideoPlayerController? controller,
+    CachingProgressData? cachingProgress,
   }) {
     return Visibility(
       visible: !showMenu && showMiniProgress,
@@ -253,6 +261,13 @@ class VideoUIBuilder {
                         ),
                       )
                     : const SizedBox.shrink(),
+              // Add caching progress overlay
+              if (cachingProgress != null && cachingProgress.isVisible)
+                CachingProgressOverlay(
+                  cachingProgress: cachingProgress,
+                  height: 3.0,
+                  margin: const EdgeInsets.only(bottom: 8, left: 10, right: 10),
+                ),
             ],
           ),
         ),

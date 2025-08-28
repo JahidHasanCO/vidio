@@ -19,6 +19,8 @@ import 'package:vidio/src/source/video_style.dart';
 import 'package:vidio/src/video_ui_builder.dart';
 import 'package:vidio/src/widgets/unlock_button.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
+import 'package:vidio/src/widgets/caching_progress_widget.dart';
+import 'package:vidio/src/video_cache_manager.dart';
 
 class Vidio extends StatefulWidget {
   const Vidio({
@@ -109,6 +111,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   String? videoFormat;
   bool loop = false;
   bool _managersInitialized = false;
+
+  // Caching progress state
+  CachingProgressData? _cachingProgress;
+  bool _isCachingInProgress = false;
+  final List<String> _cacheLogs = [];
 
   // Manager instances
   late VideoControllerManager videoControllerManager;
@@ -289,7 +296,10 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
   /// Builds the loading state when video is not initialized
   Widget buildLoadingState() {
-    return VideoUIBuilder.buildLoadingState(widget.videoLoadingStyle);
+    return VideoUIBuilder.buildLoadingState(
+      widget.videoLoadingStyle,
+      _cachingProgress,
+    );
   }
 
   /// Builds the main video player with controls overlay
@@ -463,6 +473,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       fullScreen: fullScreen,
       showMiniProgress: widget.showMiniProgress,
       controller: controller,
+      cachingProgress: _cachingProgress,
     );
   }
 
@@ -514,6 +525,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           });
         }
       },
+      cachingProgress: _cachingProgress,
     );
   }
 
@@ -571,22 +583,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         // Handle caching for non-HLS formats
         if (widget.allowCacheFile) {
           final extension = detectedFormat.toLowerCase();
-          performanceManager.executeWithErrorHandling<void>(
-            () async {
-              FileUtils.cacheFileToLocalStorage(
-                url,
-                fileExtension: extension,
-                headers: widget.headers,
-                onSaveCompleted: (file) {
-                  widget.onCacheFileCompleted?.call(file != null ? [file] : null);
-                },
-                onSaveFailed: widget.onCacheFileFailed,
-              );
-              return Future.value(null);
-            },
-            VideoErrorType.caching,
-            operationName: 'File caching for $extension format',
-          );
+          _startCaching(url, quality: extension);
         }
       }
     } else {
@@ -739,6 +736,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       } else {
         setState(() => hasInitError = false);
         seekToLastPlayingPosition();
+        // Clear caching progress when video is ready
+        _clearCachingProgress();
       }
     }).catchError((dynamic error, StackTrace? stackTrace) {
       errorHandler.handleInitializationError(error, stackTrace, 'Video initialization failed');
@@ -896,5 +895,66 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       widget.onVideoInitCompleted?.call(controller!);
       lastPlayedPos = null;
     }
+  }
+
+  /// Updates caching progress and notifies UI
+  void _updateCachingProgress(double progress, [String? log]) {
+    if (!widget.allowCacheFile) return;
+
+    if (log != null) {
+      _cacheLogs.add(log);
+      // Keep only last 5 logs to avoid memory issues
+      if (_cacheLogs.length > 5) {
+        _cacheLogs.removeAt(0);
+      }
+    }
+
+    setState(() {
+      _cachingProgress = CachingProgressData(
+        progress: progress,
+        logs: List.from(_cacheLogs),
+        isVisible: progress < 1.0, // Hide when complete
+      );
+      _isCachingInProgress = progress < 1.0;
+    });
+  }
+
+  /// Starts caching with progress tracking
+  void _startCaching(String url, {String? quality}) {
+    if (!widget.allowCacheFile) return;
+
+    _cacheLogs.clear();
+    _updateCachingProgress(0.0, 'Starting cache for video...');
+
+    VideoCacheManager().cacheVideoFile(
+      url,
+      quality: quality,
+      headers: widget.headers,
+      onProgress: (double progress) {
+        _updateCachingProgress(progress);
+      },
+      onLog: (String log) {
+        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, log);
+      },
+      onComplete: (File? file) {
+        if (file != null) {
+          _updateCachingProgress(1.0, 'Cache completed successfully');
+          widget.onCacheFileCompleted?.call([file]);
+        }
+      },
+      onError: (dynamic error) {
+        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, 'Cache failed: $error');
+        widget.onCacheFileFailed?.call(error);
+      },
+    );
+  }
+
+  /// Clears caching progress
+  void _clearCachingProgress() {
+    setState(() {
+      _cachingProgress = null;
+      _isCachingInProgress = false;
+      _cacheLogs.clear();
+    });
   }
 }

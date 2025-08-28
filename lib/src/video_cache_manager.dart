@@ -46,14 +46,17 @@ class VideoCacheManager {
     String? quality,
     Map<String, String>? headers,
     void Function(double progress)? onProgress,
+    void Function(String log)? onLog,
     void Function(File? file)? onComplete,
     void Function(dynamic error)? onError,
     bool cacheInBackground = true,
   }) async {
     final cacheKey = _generateCacheKey(url, quality);
+    onLog?.call('Starting cache for: $url');
 
     // Check if download is already in progress
     if (_pendingDownloads.containsKey(cacheKey)) {
+      onLog?.call('Download already in progress for: $cacheKey');
       return _pendingDownloads[cacheKey]!.future;
     }
 
@@ -61,11 +64,25 @@ class VideoCacheManager {
     _pendingDownloads[cacheKey] = completer;
 
     try {
+      final existingFile = await _findExistingCacheFile(url, quality);
+      if (existingFile != null) {
+        onLog?.call('Cache hit for: $cacheKey');
+        onProgress?.call(1.0); // Already cached
+        onComplete?.call(existingFile);
+        completer.complete(existingFile);
+        return completer.future;
+      }
+
+      onLog?.call('Cache miss, downloading: $cacheKey');
+
       final file = await _downloadAndCacheFile(
         url: url,
         quality: quality,
         headers: headers,
-        onProgress: onProgress,
+        onProgress: (progress) {
+          onProgress?.call(progress);
+          onLog?.call('Cache progress: ${(progress * 100).toInt()}%');
+        },
       );
 
       if (file != null) {
@@ -75,13 +92,16 @@ class VideoCacheManager {
           file: file,
           lastAccessed: DateTime.now(),
         );
+        onLog?.call('Cache completed: $cacheKey');
         onComplete?.call(file);
         completer.complete(file);
       } else {
+        onLog?.call('Cache failed: $cacheKey');
         onError?.call('Failed to cache file');
         completer.complete(null);
       }
     } catch (error) {
+      onLog?.call('Cache error: $error');
       onError?.call(error);
       completer.complete(null);
     } finally {
