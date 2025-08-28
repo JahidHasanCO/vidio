@@ -195,13 +195,17 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+
+    // Initialize all managers first
+    _initializeManagers();
+    _managersInitialized = true;
+
+    // Now set initial values (managers are initialized)
     fullScreen = widget.initFullScreen;
     isAmbientMode = widget.isAmbientMode;
     playbackSpeed = widget.playbackSpeed;
 
-    // Initialize all managers
-    _initializeManagers();
-    _managersInitialized = true;
+    // Initialize animations and determine video source
     uiStateManager.initializeAnimations(this);
     determineVideoSource(widget.url);
   }
