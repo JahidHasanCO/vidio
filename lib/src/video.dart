@@ -14,10 +14,11 @@ import 'package:vidio/src/video_event_manager.dart';
 import 'package:vidio/src/video_managers.dart';
 import 'package:vidio/src/video_performance_manager.dart';
 import 'package:vidio/src/video_state_manager.dart';
+import 'package:vidio/src/source/video_loading_style.dart';
+import 'package:vidio/src/source/video_style.dart';
 import 'package:vidio/src/video_ui_builder.dart';
 import 'package:vidio/src/widgets/unlock_button.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
-import 'package:vidio/vidio.dart';
 
 class Vidio extends StatefulWidget {
   const Vidio({
