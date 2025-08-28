@@ -813,7 +813,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     }
 
     eventManager.callPlayButtonTap(controller?.value.isPlaying ?? false);
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void videoInit(String? url) {
@@ -829,16 +831,22 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     ).then((result) {
       if (result.hasError) {
         errorHandler.handleInitializationError(result.error, null, 'Failed to initialize video controller');
-        setState(() => hasInitError = true);
+        if (mounted) {
+          setState(() => hasInitError = true);
+        }
       } else {
-        setState(() => hasInitError = false);
+        if (mounted) {
+          setState(() => hasInitError = false);
+        }
         seekToLastPlayingPosition();
         // Don't clear caching progress - let it continue in background
         // _clearCachingProgress();
       }
     }).catchError((dynamic error, StackTrace? stackTrace) {
       errorHandler.handleInitializationError(error, stackTrace, 'Video initialization failed');
-      setState(() => hasInitError = true);
+      if (mounted) {
+        setState(() => hasInitError = true);
+      }
     });
 
     // Hide quality list for offline content
@@ -871,14 +879,20 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     ).then((result) {
       if (result.hasError) {
         errorHandler.handlePlaybackError(result.error, null, 'Failed to play local M3U8 file');
-        setState(() => hasInitError = true);
+        if (mounted) {
+          setState(() => hasInitError = true);
+        }
       } else {
-        setState(() => hasInitError = false);
+        if (mounted) {
+          setState(() => hasInitError = false);
+        }
         seekToLastPlayingPosition();
       }
     }).catchError((dynamic error, StackTrace? stackTrace) {
       errorHandler.handlePlaybackError(error, stackTrace, 'Local M3U8 playback failed');
-      setState(() => hasInitError = true);
+      if (mounted) {
+        setState(() => hasInitError = true);
+      }
     });
   }
 
@@ -996,7 +1010,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
   /// Updates caching progress and notifies UI
   void _updateCachingProgress(double progress, [String? log]) {
-    if (!widget.allowCacheFile) return;
+    if (!widget.allowCacheFile || !mounted) return;
 
     print('DEBUG: Updating cache progress: ${(progress * 100).toInt()}%, log: $log');
 
@@ -1023,14 +1037,16 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
       }
     }
 
-    setState(() {
-      _cachingProgress = CachingProgressData(
-        progress: progress,
-        logs: List.from(_cacheLogs),
-        isVisible: _isContinuousCachingActive || progress > 0.0, // Show when caching is active or in progress
-      );
-      _isCachingInProgress = progress > 0.0;
-    });
+    if (mounted) {
+      setState(() {
+        _cachingProgress = CachingProgressData(
+          progress: progress,
+          logs: List.from(_cacheLogs),
+          isVisible: _isContinuousCachingActive || progress > 0.0, // Show when caching is active or in progress
+        );
+        _isCachingInProgress = progress > 0.0;
+      });
+    }
   }
 
   /// Starts caching with progress tracking
@@ -1167,7 +1183,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
       onRangeCached: (int start, int end) {
         print('DEBUG: Range cached successfully: $start - $end');
         _addCachedRange(start, end);
-        setState(() {}); // Update UI to show new cached range
+        if (mounted) {
+          setState(() {}); // Update UI to show new cached range
+        }
 
         // Update overall progress
         final overallProgress = getOverallCachingProgress();
@@ -1221,7 +1239,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   void _stopContinuousCaching() {
     print('DEBUG: Stopping continuous caching');
     _isContinuousCachingActive = false;
-    _updateCachingProgress(0.0); // Hide progress
+
+    // Only update progress if widget is still mounted
+    if (mounted) {
+      _updateCachingProgress(0.0); // Hide progress
+    }
 
     // Clear current video URL to prevent accidental restarts
     _currentVideoUrl = null;
