@@ -11,7 +11,9 @@ import 'package:vidio/src/constants/video_constants.dart';
 import 'package:vidio/src/model/models.dart';
 import 'package:vidio/src/responses/regex_response.dart';
 import 'package:vidio/src/utils/utils.dart';
+import 'package:vidio/src/widgets/action_bar.dart';
 import 'package:vidio/src/widgets/ambient_mode_settings.dart';
+import 'package:vidio/src/widgets/live_direct_button.dart';
 import 'package:vidio/src/widgets/playback_speed_slider.dart';
 import 'package:vidio/src/widgets/player_bottom_bar.dart';
 import 'package:vidio/src/widgets/unlock_button.dart';
@@ -199,99 +201,161 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       child: AspectRatio(
         aspectRatio: fullScreen ? 16 / 9 : widget.aspectRatio,
         child: controller?.value.isInitialized == false
-            ? VideoLoading(loadingStyle: widget.videoLoadingStyle)
-            : Stack(
-                children: <Widget>[
-                  GestureDetector(
-                    onTap: () {
-                      toggleControls();
-                      removeOverlay();
-                    },
-                    onDoubleTapDown: (TapDownDetails details) {
-                      if (controller == null || isLocked) return;
-                      final box = context.findRenderObject() as RenderBox?;
-                      if (box == null) return;
-                      final localPosition = box.globalToLocal(details.globalPosition);
-                      final width = box.size.width;
-
-                      if (localPosition.dx < width / 3) {
-                        controller!.rewind().then(
-                              (value) => widget.onRewind?.call(controller!.value),
-                            );
-                      } else if (localPosition.dx > (2 * width) / 3) {
-                        controller!.fastForward().then(
-                              (value) => widget.onRewind?.call(controller!.value),
-                            );
-                      } else {
-                        togglePlay();
-                      }
-                    },
-                    onVerticalDragUpdate: (details) {
-                      if (isLocked) return;
-
-                      if (details.delta.dy > 0) {
-                        if (fullScreen) {
-                          setState(() {
-                            fullScreen = !fullScreen;
-                            widget.onFullScreen?.call(fullScreen);
-                          });
-                        }
-                      } else {
-                        if (!fullScreen) {
-                          setState(() {
-                            fullScreen = !fullScreen;
-                            widget.onFullScreen?.call(fullScreen);
-                          });
-                        }
-                      }
-                    },
-                    child: Container(
-                      foregroundDecoration: BoxDecoration(
-                        color: showMenu && !isLocked ? Colors.black.withOpacity(0.35) : Colors.transparent,
-                      ),
-                      child: controller == null
-                          ? const SizedBox.shrink()
-                          : widget.allowRepaintBoundary && widget.repaintBoundaryKey != null
-                              ? RepaintBoundary(
-                                  key: widget.repaintBoundaryKey,
-                                  child: InteractiveViewer(
-                                    panEnabled: fullScreen,
-                                    scaleEnabled: fullScreen,
-                                    minScale: 1,
-                                    maxScale: 5,
-                                    child: VideoPlayer(controller!),
-                                  ),
-                                )
-                              : InteractiveViewer(
-                                  panEnabled: fullScreen,
-                                  scaleEnabled: fullScreen,
-                                  minScale: 1,
-                                  maxScale: 5,
-                                  child: VideoPlayer(controller!),
-                                ),
-                    ),
-                  ),
-                  if (!isLocked) ...videoBuiltInChildren(),
-                  if (isLocked)
-                    UnlockButton(
-                      isLocked: isLocked,
-                      showMenu: showMenu,
-                      onUnlock: () {
-                        setState(() {
-                          isLocked = !isLocked;
-                        });
-                      },
-                    ),
-                ],
-              ),
+            ? buildLoadingState()
+            : buildVideoPlayer(),
       ),
     );
   }
 
+  /// Builds the loading state when video is not initialized
+  Widget buildLoadingState() {
+    return VideoLoading(loadingStyle: widget.videoLoadingStyle);
+  }
+
+  /// Builds the main video player with controls overlay
+  Widget buildVideoPlayer() {
+    return Stack(
+      children: <Widget>[
+        buildGestureDetector(),
+        ...buildControlsOverlay(),
+      ],
+    );
+  }
+
+  /// Builds the gesture detector for video player interactions
+  Widget buildGestureDetector() {
+    return GestureDetector(
+      onTap: () {
+        toggleControls();
+        removeOverlay();
+      },
+      onDoubleTapDown: (TapDownDetails details) {
+        if (controller == null || isLocked) return;
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        final localPosition = box.globalToLocal(details.globalPosition);
+        final width = box.size.width;
+
+        if (localPosition.dx < width / 3) {
+          controller!.rewind().then(
+                (value) => widget.onRewind?.call(controller!.value),
+              );
+        } else if (localPosition.dx > (2 * width) / 3) {
+          controller!.fastForward().then(
+                (value) => widget.onRewind?.call(controller!.value),
+              );
+        } else {
+          togglePlay();
+        }
+      },
+      onVerticalDragUpdate: (details) {
+        if (isLocked) return;
+
+        if (details.delta.dy > 0) {
+          if (fullScreen) {
+            setState(() {
+              fullScreen = !fullScreen;
+              widget.onFullScreen?.call(fullScreen);
+            });
+          }
+        } else {
+          if (!fullScreen) {
+            setState(() {
+              fullScreen = !fullScreen;
+              widget.onFullScreen?.call(fullScreen);
+            });
+          }
+        }
+      },
+      child: Container(
+        foregroundDecoration: BoxDecoration(
+          color: showMenu && !isLocked ? Colors.black.withOpacity(0.35) : Colors.transparent,
+        ),
+        child: controller == null
+            ? const SizedBox.shrink()
+            : widget.allowRepaintBoundary && widget.repaintBoundaryKey != null
+                ? RepaintBoundary(
+                    key: widget.repaintBoundaryKey,
+                    child: InteractiveViewer(
+                      panEnabled: fullScreen,
+                      scaleEnabled: fullScreen,
+                      minScale: 1,
+                      maxScale: 5,
+                      child: VideoPlayer(controller!),
+                    ),
+                  )
+                : InteractiveViewer(
+                    panEnabled: fullScreen,
+                    scaleEnabled: fullScreen,
+                    minScale: 1,
+                    maxScale: 5,
+                    child: VideoPlayer(controller!),
+                  ),
+      ),
+    );
+  }
+
+  /// Builds the controls overlay (action bar, bottom controls, etc.)
+  List<Widget> buildControlsOverlay() {
+    if (isLocked) {
+      return [
+        UnlockButton(
+          isLocked: isLocked,
+          showMenu: showMenu,
+          onUnlock: () {
+            setState(() {
+              isLocked = !isLocked;
+            });
+          },
+        ),
+      ];
+    }
+    return videoBuiltInChildren();
+  }
+
   List<Widget> videoBuiltInChildren() {
     return [
-      actionBar(),
-      liveDirectButton(),
+      ActionBar(
+        showMenu: showMenu,
+        fullScreen: fullScreen,
+        isLocked: isLocked,
+        videoStyle: widget.videoStyle,
+        onSupportButtonTap: widget.onSupportButtonTap != null
+            ? () {
+                if (showMenu && mounted) {
+                  setState(() {
+                    showMenu = false;
+                    removeOverlay();
+                  });
+                }
+                widget.onSupportButtonTap?.call();
+              }
+            : null,
+        onLockTap: () {
+          setState(() {
+            isLocked = !isLocked;
+          });
+        },
+        onVideoListTap: widget.onVideoListTap != null
+            ? () {
+                if (showMenu && mounted) {
+                  setState(() {
+                    showMenu = false;
+                    removeOverlay();
+                  });
+                }
+                widget.onVideoListTap?.call();
+              }
+            : null,
+        onSettingsTap: () => showSettingsDialog(context),
+      ),
+      LiveDirectButton(
+        controller: controller,
+        showMenu: showMenu,
+        isAtLivePosition: isAtLivePosition,
+        videoStyle: widget.videoStyle,
+        onLiveDirectTap: widget.onLiveDirectTap,
+      ),
       backButton(),
       bottomBar(),
       _miniProgress(),
@@ -367,114 +431,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     );
   }
 
-  Widget actionBar() {
-    return Visibility(
-      visible: showMenu,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: Container(
-            width: MediaQuery.of(context).size.width,
-            padding: widget.videoStyle.actionBarPadding ?? EdgeInsets.zero,
-            alignment: Alignment.topRight,
-            color: widget.videoStyle.actionBarBgColor,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (fullScreen) ...[
-                  InkWell(
-                    onTap: () {
-                      if (widget.onSupportButtonTap != null) {
-                        if (showMenu && mounted) {
-                          setState(() {
-                            showMenu = false;
-                            removeOverlay();
-                          });
-                        }
-                        widget.onSupportButtonTap?.call();
-                      }
-                    },
-                    child: Container(
-                      height: 50,
-                      width: 50,
-                      margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
-                      child: const Icon(
-                        Icons.support_agent,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        isLocked = !isLocked;
-                      });
-                    },
-                    child: Container(
-                      height: 50,
-                      width: 50,
-                      margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
-                      child: const Icon(
-                        Icons.lock_open_sharp,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      if (widget.onVideoListTap != null) {
-                        if (showMenu && mounted) {
-                          setState(() {
-                            showMenu = false;
-                            removeOverlay();
-                          });
-                        }
-                        widget.onVideoListTap?.call();
-                      }
-                    },
-                    child: Container(
-                      height: 50,
-                      width: 50,
-                      margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
-                      child: SvgPicture.asset(
-                        'packages/vidio/assets/icons/playlist.svg',
-                        width: 24,
-                        height: 24,
-                        fit: BoxFit.scaleDown,
-                        colorFilter: const ColorFilter.mode(
-                          Colors.white,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-                InkWell(
-                  onTap: () => showSettingsDialog(context),
-                  child: Container(
-                    height: 50,
-                    width: 50,
-                    margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
-                    child: const Icon(
-                      Icons.settings,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: widget.videoStyle.qualityButtonAndFullScrIcoSpace,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+
 
   Widget bottomBar() {
     if (controller == null) {
@@ -514,53 +471,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     );
   }
 
-  Widget liveDirectButton() {
-    if (controller == null) {
-      return const SizedBox.shrink();
-    }
-    return Visibility(
-      visible: widget.videoStyle.showLiveDirectButton && showMenu,
-      child: Align(
-        alignment: Alignment.topLeft,
-        child: IntrinsicWidth(
-          child: InkWell(
-            onTap: () {
-              controller?.seekTo(controller!.value.duration).then((value) {
-                widget.onLiveDirectTap?.call(controller!.value);
-                controller!.play();
-              });
-            },
-            splashColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 14,
-              ),
-              margin: const EdgeInsets.only(left: 9),
-              child: Row(
-                children: [
-                  Container(
-                    width: widget.videoStyle.liveDirectButtonSize,
-                    height: widget.videoStyle.liveDirectButtonSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isAtLivePosition ? widget.videoStyle.liveDirectButtonColor : widget.videoStyle.liveDirectButtonDisableColor,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    widget.videoStyle.liveDirectButtonText ?? 'Live',
-                    style: widget.videoStyle.liveDirectButtonTextStyle ?? const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+
 
   Widget m3u8List() {
     final renderBox = videoQualityKey.currentContext?.findRenderObject() as RenderBox?;
