@@ -25,3 +25,14 @@ extension DurationExtensions on Duration {
     return "${hours.isNotEmpty ? "$hours:" : hours}$minutes:$seconds";
   }
 }
+
+/// Extension to convert Duration to string (assuming this exists elsewhere)
+extension DurationExtension on Duration {
+  String convertDuration() {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final hours = twoDigits(inHours);
+    final minutes = twoDigits(inMinutes.remainder(60));
+    final seconds = twoDigits(inSeconds.remainder(60));
+    return [if (inHours > 0) hours, minutes, seconds].join(':');
+  }
+}

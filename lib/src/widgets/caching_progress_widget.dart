@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 /// A widget that displays caching progress with percentage and optional logs
 class CachingProgressWidget extends StatelessWidget {
   const CachingProgressWidget({
-    super.key,
     required this.progress,
+    super.key,
     this.showLogs = false,
     this.logs = const [],
     this.progressColor = Colors.blue,
@@ -40,7 +40,6 @@ class CachingProgressWidget extends StatelessWidget {
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
               color: progressColor.withOpacity(0.3),
-              width: 1.0,
             ),
           ),
           child: ClipRRect(
@@ -65,7 +64,6 @@ class CachingProgressWidget extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   shadows: const [
                     Shadow(
-                      color: Colors.black,
                       blurRadius: 3,
                       offset: Offset(0, 1),
                     ),
@@ -97,31 +95,6 @@ class CachingProgressWidget extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-/// A model class for caching progress data
-class CachingProgressData {
-  const CachingProgressData({
-    required this.progress,
-    this.logs = const [],
-    this.isVisible = true,
-  });
-
-  final double progress;
-  final List<String> logs;
-  final bool isVisible;
-
-  CachingProgressData copyWith({
-    double? progress,
-    List<String>? logs,
-    bool? isVisible,
-  }) {
-    return CachingProgressData(
-      progress: progress ?? this.progress,
-      logs: logs ?? this.logs,
-      isVisible: isVisible ?? this.isVisible,
     );
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vidio/src/video_cache_manager.dart';
+import 'package:vidio/src/model/model.dart';
 
 void main() {
   group('CacheStats', () {
@@ -13,7 +13,11 @@ void main() {
     });
 
     test('should format large file sizes correctly', () {
-      final stats = CacheStats(fileCount: 1, totalSize: 1073741824, cacheEntries: 1); // 1GB
+      final stats = CacheStats(
+        fileCount: 1,
+        totalSize: 1073741824,
+        cacheEntries: 1,
+      ); // 1GB
 
       expect(stats.formattedSize, equals('1.0 GB'));
     });
@@ -28,7 +32,8 @@ void main() {
     });
 
     test('should format medium file sizes correctly', () {
-      final stats = CacheStats(fileCount: 1, totalSize: 1048576, cacheEntries: 1); // 1MB
+      final stats =
+          CacheStats(fileCount: 1, totalSize: 1048576, cacheEntries: 1); // 1MB
 
       expect(stats.formattedSize, equals('1.0 MB'));
     });

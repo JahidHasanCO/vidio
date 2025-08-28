@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
+import 'package:vidio/src/model/model.dart';
 import 'package:vidio/src/utils/extensions/video_controller_extensions.dart';
 import 'package:vidio/src/widgets/play_pause_icon.dart';
 import 'package:vidio/src/widgets/seek_button.dart';
 import 'package:vidio/src/widgets/seek_slider.dart';
-import 'package:vidio/src/widgets/caching_progress_widget.dart';
-import 'package:vidio/src/video_cache_manager.dart';
 import 'package:vidio/vidio.dart';
 
 class PlayerBottomBar extends StatefulWidget {
@@ -29,6 +28,7 @@ class PlayerBottomBar extends StatefulWidget {
     this.cachingProgress,
     this.cachedRanges,
   });
+
   final VideoPlayerController controller;
   final VoidCallback? onFullScreenIconTap;
   final bool fullScreen;

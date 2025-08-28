@@ -31,7 +31,7 @@ class FileUtils {
   }
 
   /// Method to write the downloaded video into device local
-  /// storage using [writeAsBytes] method
+  /// storage using writeAsBytes method
   /// from [File]'s object.
   static Future<void> _writeFile({
     required http.Response response,
@@ -48,8 +48,11 @@ class FileUtils {
     }
 
     if (dir != null) {
+      final fileName_ = (fileName != null && fileName.isNotEmpty)
+          ? fileName
+          : DateTime.now().millisecondsSinceEpoch;
       final file = File(
-        '${dir.path}/${(fileName != null && fileName.isNotEmpty) ? fileName : DateTime.now().millisecondsSinceEpoch}.${fileExtension ?? 'm3u8'}',
+        '${dir.path}/$fileName_.${fileExtension ?? 'm3u8'}',
       );
       await file.writeAsBytes(response.bodyBytes).then((f) async {
         onSaveCompleted?.call(f);
@@ -69,7 +72,7 @@ class FileUtils {
   }
 
   /// Method to write the downloaded video into device local storage using
-  /// [writeAsString] method
+  /// writeAsString method
   /// from [File]'s object.
   static Future<File> cacheFileUsingWriteAsString({
     required String contents,

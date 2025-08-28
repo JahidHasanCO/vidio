@@ -41,10 +41,10 @@ class VideoParser {
             headers: headers,
           )
           .timeout(VideoConstants.kNetworkTimeout);
-          
+
       if (response.statusCode == 200) {
         final m3u8Content = utf8.decode(response.bodyBytes);
-        
+
         final cachedFiles = <File>[];
         var index = 0;
 
@@ -53,12 +53,12 @@ class VideoParser {
         for (final regExpMatch in matches) {
           final quality = regExpMatch.group(1).toString();
           final sourceURL = regExpMatch.group(3).toString();
-          
+
           final netRegex = RegExp(RegexResponse.regexHTTP);
           final netRegex2 = RegExp(RegexResponse.regexURL);
           final isNetwork = netRegex.hasMatch(sourceURL);
           final match = netRegex2.firstMatch(videoUrl);
-          
+
           String url;
           if (isNetwork) {
             url = sourceURL;
@@ -84,14 +84,16 @@ class VideoParser {
 
           var audio = '';
           if (audioList.isNotEmpty) {
-            audio = '''#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio-medium",NAME="audio",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="2",
+            audio =
+                '''#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio-medium",NAME="audio",AUTOSELECT=YES,DEFAULT=YES,CHANNELS="2",
                   URI="${audioList.last.url}"\n''';
           }
 
           if (allowCacheFile) {
             try {
               final file = await FileUtils.cacheFileUsingWriteAsString(
-                contents: '''#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n$audio#EXT-X-STREAM-INF:CLOSED-CAPTIONS=NONE,BANDWIDTH=1469712,
+                contents:
+                    '''#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n$audio#EXT-X-STREAM-INF:CLOSED-CAPTIONS=NONE,BANDWIDTH=1469712,
                   RESOLUTION=$quality,FRAME-RATE=30.000\n$url''',
                 quality: quality,
                 videoUrl: url,
@@ -104,16 +106,17 @@ class VideoParser {
               }
 
               if (allowCacheFile && index == matches.length) {
-                onCacheFileCompleted?.call(cachedFiles.isEmpty ? null : cachedFiles);
+                onCacheFileCompleted
+                    ?.call(cachedFiles.isEmpty ? null : cachedFiles);
               }
             } catch (e) {
               onCacheFileFailed?.call(e);
             }
           }
-          
+
           m3u8UrlList.add(M3U8Data(dataQuality: quality, dataURL: url));
         }
-        
+
         return M3U8s(m3u8s: m3u8UrlList);
       }
     } on TimeoutException catch (e) {
@@ -123,7 +126,7 @@ class VideoParser {
     } catch (e) {
       debugPrint('Unexpected error: $e');
     }
-    
+
     return null;
   }
 
@@ -131,11 +134,11 @@ class VideoParser {
   static String? determineVideoFormat(String url) {
     final uri = Uri.parse(url);
     final pathSegments = uri.pathSegments;
-    
+
     if (pathSegments.isEmpty) return null;
-    
+
     final fileName = pathSegments.last.toLowerCase();
-    
+
     if (fileName.endsWith('mkv')) {
       return 'MKV';
     } else if (fileName.endsWith('mp4')) {
@@ -145,7 +148,7 @@ class VideoParser {
     } else if (fileName.endsWith('m3u8')) {
       return 'HLS';
     }
-    
+
     return null;
   }
 

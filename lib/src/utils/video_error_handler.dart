@@ -1,43 +1,13 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-
-/// Types of errors that can occur in the video player
-enum VideoErrorType {
-  initialization,
-  playback,
-  network,
-  parsing,
-  caching,
-  unknown,
-}
-
-/// Represents a video player error with context
-class VideoError {
-  final VideoErrorType type;
-  final dynamic error;
-  final StackTrace? stackTrace;
-  final String? context;
-  final DateTime timestamp;
-
-  VideoError({
-    required this.type,
-    required this.error,
-    this.stackTrace,
-    this.context,
-    DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
-
-  @override
-  String toString() {
-    return 'VideoError(type: $type, error: $error, context: $context, timestamp: $timestamp)';
-  }
-}
+import 'package:vidio/src/enum/video_error_type.dart';
+import 'package:vidio/src/model/video_error.dart';
 
 /// Manages error handling and reporting for the video player
 class VideoErrorHandler {
   final List<VideoError> _errors = [];
-  final StreamController<VideoError> _errorStreamController = StreamController<VideoError>.broadcast();
+  final StreamController<VideoError> _errorStreamController =
+      StreamController<VideoError>.broadcast();
 
   /// Stream of errors for external listeners
   Stream<VideoError> get errorStream => _errorStreamController.stream;
@@ -49,7 +19,11 @@ class VideoErrorHandler {
   VideoError? get latestError => _errors.isNotEmpty ? _errors.last : null;
 
   /// Handle initialization errors
-  void handleInitializationError(dynamic error, StackTrace? stackTrace, [String? context]) {
+  void handleInitializationError(
+    dynamic error,
+    StackTrace? stackTrace, [
+    String? context,
+  ]) {
     final videoError = VideoError(
       type: VideoErrorType.initialization,
       error: error,
@@ -60,7 +34,11 @@ class VideoErrorHandler {
   }
 
   /// Handle playback errors
-  void handlePlaybackError(dynamic error, StackTrace? stackTrace, [String? context]) {
+  void handlePlaybackError(
+    dynamic error,
+    StackTrace? stackTrace, [
+    String? context,
+  ]) {
     final videoError = VideoError(
       type: VideoErrorType.playback,
       error: error,
@@ -71,7 +49,11 @@ class VideoErrorHandler {
   }
 
   /// Handle network errors
-  void handleNetworkError(dynamic error, StackTrace? stackTrace, [String? context]) {
+  void handleNetworkError(
+    dynamic error,
+    StackTrace? stackTrace, [
+    String? context,
+  ]) {
     final videoError = VideoError(
       type: VideoErrorType.network,
       error: error,
@@ -82,7 +64,11 @@ class VideoErrorHandler {
   }
 
   /// Handle parsing errors
-  void handleParsingError(dynamic error, StackTrace? stackTrace, [String? context]) {
+  void handleParsingError(
+    dynamic error,
+    StackTrace? stackTrace, [
+    String? context,
+  ]) {
     final videoError = VideoError(
       type: VideoErrorType.parsing,
       error: error,
@@ -93,7 +79,11 @@ class VideoErrorHandler {
   }
 
   /// Handle caching errors
-  void handleCachingError(dynamic error, StackTrace? stackTrace, [String? context]) {
+  void handleCachingError(
+    dynamic error,
+    StackTrace? stackTrace, [
+    String? context,
+  ]) {
     final videoError = VideoError(
       type: VideoErrorType.caching,
       error: error,
@@ -104,7 +94,11 @@ class VideoErrorHandler {
   }
 
   /// Handle unknown errors
-  void handleUnknownError(dynamic error, StackTrace? stackTrace, [String? context]) {
+  void handleUnknownError(
+    dynamic error,
+    StackTrace? stackTrace, [
+    String? context,
+  ]) {
     final videoError = VideoError(
       type: VideoErrorType.unknown,
       error: error,
@@ -140,8 +134,12 @@ class VideoErrorHandler {
 
   /// Get errors within a time range
   List<VideoError> getErrorsInRange(DateTime start, DateTime end) {
-    return _errors.where((error) =>
-        error.timestamp.isAfter(start) && error.timestamp.isBefore(end)).toList();
+    return _errors
+        .where(
+          (error) =>
+              error.timestamp.isAfter(start) && error.timestamp.isBefore(end),
+        )
+        .toList();
   }
 
   /// Check if there are any errors
@@ -189,26 +187,25 @@ class VideoErrorHandler {
   }
 
   /// Handle error based on type
-  void _handleErrorByType(VideoErrorType type, dynamic error, StackTrace stackTrace, String? context) {
+  void _handleErrorByType(
+    VideoErrorType type,
+    dynamic error,
+    StackTrace stackTrace,
+    String? context,
+  ) {
     switch (type) {
       case VideoErrorType.initialization:
         handleInitializationError(error, stackTrace, context);
-        break;
       case VideoErrorType.playback:
         handlePlaybackError(error, stackTrace, context);
-        break;
       case VideoErrorType.network:
         handleNetworkError(error, stackTrace, context);
-        break;
       case VideoErrorType.parsing:
         handleParsingError(error, stackTrace, context);
-        break;
       case VideoErrorType.caching:
         handleCachingError(error, stackTrace, context);
-        break;
       case VideoErrorType.unknown:
         handleUnknownError(error, stackTrace, context);
-        break;
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:vidio/src/video_error_handler.dart';
+import 'package:vidio/src/enum/video_error_type.dart';
+import 'package:vidio/src/model/model.dart';
 
 /// Manages performance optimizations and debouncing for the video player
 class VideoPerformanceManager {
@@ -8,7 +9,11 @@ class VideoPerformanceManager {
   final Map<String, Completer<void>> _pendingOperations = {};
 
   /// Debounce a function call to prevent rapid successive calls
-  void debounce(String key, VoidCallback action, {Duration delay = const Duration(milliseconds: 300)}) {
+  void debounce(
+    String key,
+    VoidCallback action, {
+    Duration delay = const Duration(milliseconds: 300),
+  }) {
     // Cancel existing timer
     _debounceTimers[key]?.cancel();
 
@@ -20,7 +25,11 @@ class VideoPerformanceManager {
   }
 
   /// Throttle a function to limit how often it can be called
-  void throttle(String key, VoidCallback action, {Duration interval = const Duration(milliseconds: 100)}) {
+  void throttle(
+    String key,
+    VoidCallback action, {
+    Duration interval = const Duration(milliseconds: 100),
+  }) {
     if (_pendingOperations.containsKey(key)) {
       return; // Operation already pending
     }
@@ -57,7 +66,8 @@ class VideoPerformanceManager {
   /// Cache expensive operations
   T cacheOperation<T>(String key, T Function() operation, {Duration? ttl}) {
     // Simple in-memory cache implementation
-    // In a real app, you might want to use a more sophisticated caching solution
+    // In a real app, you might want to use
+    // a more sophisticated caching solution
     return operation();
   }
 
@@ -95,7 +105,10 @@ class VideoPerformanceManager {
     final results = <T>[];
 
     for (var i = 0; i < operations.length; i += batchSize) {
-      final batch = operations.sublist(i, i + batchSize > operations.length ? operations.length : i + batchSize);
+      final batch = operations.sublist(
+        i,
+        i + batchSize > operations.length ? operations.length : i + batchSize,
+      );
       final batchResults = await Future.wait(batch.map((op) => op()));
       results.addAll(batchResults);
 
@@ -109,7 +122,9 @@ class VideoPerformanceManager {
   }
 
   /// Preload resources to improve performance
-  Future<void> preloadResources(List<Future<void> Function()> preloadOperations) async {
+  Future<void> preloadResources(
+    List<Future<void> Function()> preloadOperations,
+  ) async {
     await Future.wait(preloadOperations.map((op) => op()));
   }
 
@@ -136,88 +151,5 @@ class VideoPerformanceManager {
       activeDebounceTimers: _debounceTimers.length,
       pendingOperations: _pendingOperations.length,
     );
-  }
-}
-
-/// Result of a performance measurement
-class PerformanceResult<T> {
-  final T? result;
-  final Duration executionTime;
-  final String? operationName;
-  final dynamic error;
-
-  PerformanceResult({
-    required this.result,
-    required this.executionTime,
-    this.operationName,
-    this.error,
-  });
-
-  bool get hasError => error != null;
-
-  @override
-  String toString() {
-    return 'PerformanceResult(operation: $operationName, time: $executionTime, hasError: $hasError)';
-  }
-}
-
-/// Performance statistics
-class PerformanceStats {
-  final int activeDebounceTimers;
-  final int pendingOperations;
-
-  PerformanceStats({
-    required this.activeDebounceTimers,
-    required this.pendingOperations,
-  });
-
-  @override
-  String toString() {
-    return 'PerformanceStats(debounceTimers: $activeDebounceTimers, pendingOps: $pendingOperations)';
-  }
-}
-
-/// Utility class for performance monitoring
-class PerformanceMonitor {
-  static final Map<String, List<Duration>> _measurements = {};
-
-  /// Record a performance measurement
-  static void recordMeasurement(String operation, Duration duration) {
-    _measurements.putIfAbsent(operation, () => []).add(duration);
-
-    // Keep only last 100 measurements per operation
-    if (_measurements[operation]!.length > 100) {
-      _measurements[operation]!.removeAt(0);
-    }
-  }
-
-  /// Get average execution time for an operation
-  static Duration getAverageTime(String operation) {
-    final measurements = _measurements[operation];
-    if (measurements == null || measurements.isEmpty) {
-      return Duration.zero;
-    }
-
-    final total = measurements.fold<Duration>(Duration.zero, (sum, duration) => sum + duration);
-    return Duration(microseconds: total.inMicroseconds ~/ measurements.length);
-  }
-
-  /// Get performance report
-  static String getPerformanceReport() {
-    final buffer = StringBuffer();
-    buffer.writeln('Performance Report:');
-    buffer.writeln('==================');
-
-    for (final entry in _measurements.entries) {
-      final avg = getAverageTime(entry.key);
-      buffer.writeln('${entry.key}: ${avg.inMilliseconds}ms (avg of ${entry.value.length} measurements)');
-    }
-
-    return buffer.toString();
-  }
-
-  /// Clear all measurements
-  static void clearMeasurements() {
-    _measurements.clear();
   }
 }

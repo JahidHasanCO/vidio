@@ -1,26 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:vidio/src/constants/video_constants.dart';
-import 'package:vidio/src/model/models.dart';
+import 'package:vidio/src/model/model.dart';
 import 'package:vidio/src/source/video_loading_style.dart';
 import 'package:vidio/src/source/video_style.dart';
 import 'package:vidio/src/widgets/action_bar.dart';
+import 'package:vidio/src/widgets/ambient_mode_settings.dart';
+import 'package:vidio/src/widgets/caching_progress_overlay.dart';
 import 'package:vidio/src/widgets/live_direct_button.dart';
 import 'package:vidio/src/widgets/playback_speed_slider.dart';
 import 'package:vidio/src/widgets/player_bottom_bar.dart';
 import 'package:vidio/src/widgets/unlock_button.dart';
 import 'package:vidio/src/widgets/video_loading.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
-import 'package:vidio/src/video_cache_manager.dart';
-
-import 'widgets/ambient_mode_settings.dart';
-import 'widgets/caching_progress_widget.dart';
-import 'widgets/caching_progress_overlay.dart';
 
 /// Builds UI components for the video player
 class VideoUIBuilder {
   /// Builds the loading state widget
-  static Widget buildLoadingState(VideoLoadingStyle loadingStyle, [CachingProgressData? cachingProgress]) {
+  static Widget buildLoadingState(
+    VideoLoadingStyle loadingStyle, [
+    CachingProgressData? cachingProgress,
+  ]) {
     return VideoLoading(
       loadingStyle: loadingStyle,
       cachingProgress: cachingProgress,
@@ -61,7 +61,9 @@ class VideoUIBuilder {
       onVerticalDragUpdate: onVerticalDragUpdate,
       child: Container(
         foregroundDecoration: BoxDecoration(
-          color: showMenu && !isLocked ? Colors.black.withOpacity(0.35) : Colors.transparent,
+          color: showMenu && !isLocked
+              ? Colors.black.withOpacity(0.35)
+              : Colors.transparent,
         ),
         child: controller == null
             ? const SizedBox.shrink()
@@ -208,7 +210,8 @@ class VideoUIBuilder {
       child: Align(
         child: PlayerBottomBar(
           hideFullScreenButton: hideFullScreenButton,
-          fullScreen: false, // Will be passed from state
+          fullScreen: false,
+          // Will be passed from state
           controller: controller,
           videoSeek: videoSeek,
           videoDuration: videoDuration,
@@ -264,11 +267,12 @@ class VideoUIBuilder {
                         ),
                       )
                     : const SizedBox.shrink(),
-              // Add caching progress overlay - always show when caching is active
+              // Add caching progress overlay -
+              // always show when caching is active
               if (cachingProgress != null && cachingProgress.isVisible)
                 CachingProgressOverlay(
                   cachingProgress: cachingProgress,
-                  height: 3.0,
+                  height: 3,
                   margin: const EdgeInsets.only(bottom: 8, left: 10, right: 10),
                 ),
             ],

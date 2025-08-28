@@ -48,7 +48,8 @@ class ActionBar extends StatelessWidget {
                       child: Container(
                         height: 50,
                         width: 50,
-                        margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
+                        margin:
+                            fullScreen ? const EdgeInsets.only(top: 10) : null,
                         child: const Icon(
                           Icons.support_agent,
                           color: Colors.white,
@@ -61,7 +62,8 @@ class ActionBar extends StatelessWidget {
                     child: Container(
                       height: 50,
                       width: 50,
-                      margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
+                      margin:
+                          fullScreen ? const EdgeInsets.only(top: 10) : null,
                       child: Icon(
                         isLocked ? Icons.lock : Icons.lock_open_sharp,
                         color: Colors.white,
@@ -75,7 +77,8 @@ class ActionBar extends StatelessWidget {
                       child: Container(
                         height: 50,
                         width: 50,
-                        margin: fullScreen ? const EdgeInsets.only(top: 10) : null,
+                        margin:
+                            fullScreen ? const EdgeInsets.only(top: 10) : null,
                         child: SvgPicture.asset(
                           'packages/vidio/assets/icons/playlist.svg',
                           width: 24,

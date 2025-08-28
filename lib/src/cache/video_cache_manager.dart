@@ -4,14 +4,17 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:vidio/src/model/model.dart';
 
 /// Enhanced caching manager for video files with smart caching strategies
 class VideoCacheManager {
-  static final VideoCacheManager _instance = VideoCacheManager._internal();
   factory VideoCacheManager() => _instance;
+
   VideoCacheManager._internal();
 
-  final Map<String, _CacheEntry> _cacheEntries = {};
+  static final VideoCacheManager _instance = VideoCacheManager._internal();
+
+  final Map<String, CacheEntry> _cacheEntries = {};
   final Map<String, Completer<File?>> _pendingDownloads = {};
 
   /// Check if a video file is already cached
@@ -28,7 +31,7 @@ class VideoCacheManager {
     // Check file system for existing cache
     final file = await _findExistingCacheFile(url, quality);
     if (file != null && file.existsSync()) {
-      _cacheEntries[cacheKey] = _CacheEntry(
+      _cacheEntries[cacheKey] = CacheEntry(
         url: url,
         quality: quality,
         file: file,
@@ -51,7 +54,7 @@ class VideoCacheManager {
     void Function(dynamic error)? onError,
     bool cacheInBackground = true,
     int? startByte, // For partial caching
-    int? endByte,   // For partial caching
+    int? endByte, // For partial caching
   }) async {
     final cacheKey = _generateCacheKey(url, quality);
     onLog?.call('Starting cache for: $url');
@@ -69,7 +72,7 @@ class VideoCacheManager {
       final existingFile = await _findExistingCacheFile(url, quality);
       if (existingFile != null) {
         onLog?.call('Cache hit for: $cacheKey');
-        onProgress?.call(1.0); // Already cached
+        onProgress?.call(1); // Already cached
         onComplete?.call(existingFile);
         completer.complete(existingFile);
         return completer.future;
@@ -90,7 +93,7 @@ class VideoCacheManager {
       );
 
       if (file != null) {
-        _cacheEntries[cacheKey] = _CacheEntry(
+        _cacheEntries[cacheKey] = CacheEntry(
           url: url,
           quality: quality,
           file: file,
@@ -133,13 +136,15 @@ class VideoCacheManager {
 
     try {
       // Check if this range is already cached
-      final existingRanges = await getCachedRanges(url, quality, endByte - startByte + 1);
-      final isRangeCached = existingRanges.any((range) =>
-          range.startByte <= startByte && range.endByte >= endByte);
+      final existingRanges =
+          await getCachedRanges(url, quality, endByte - startByte + 1);
+      final isRangeCached = existingRanges.any(
+        (range) => range.startByte <= startByte && range.endByte >= endByte,
+      );
 
       if (isRangeCached) {
         onLog?.call('Range already cached: $startByte-$endByte');
-        onProgress?.call(1.0);
+        onProgress?.call(1);
         onRangeCached?.call(startByte, endByte);
         onComplete?.call(null); // No new file created
         return null;
@@ -168,16 +173,18 @@ class VideoCacheManager {
           _mergeRanges(entry.cachedRanges);
         } else {
           // Create new entry
-          _cacheEntries[cacheKey] = _CacheEntry(
+          _cacheEntries[cacheKey] = CacheEntry(
             url: url,
             quality: quality,
             file: file,
             lastAccessed: DateTime.now(),
-            cachedRanges: [CachedRange(
-              startByte: startByte,
-              endByte: endByte,
-              cachedAt: DateTime.now(),
-            )],
+            cachedRanges: [
+              CachedRange(
+                startByte: startByte,
+                endByte: endByte,
+                cachedAt: DateTime.now(),
+              ),
+            ],
           );
         }
 
@@ -218,8 +225,9 @@ class VideoCacheManager {
     }
     merged.add(current);
 
-    ranges.clear();
-    ranges.addAll(merged);
+    ranges
+      ..clear()
+      ..addAll(merged);
   }
 
   /// Get optimal video source (cached or network)
@@ -234,11 +242,12 @@ class VideoCacheManager {
     if (cachedFile != null) {
       // Start background caching of network version if enabled
       if (enableBackgroundCaching) {
-        cacheVideoFile(
-          url,
-          quality: quality,
-          headers: headers,
-          cacheInBackground: true,
+        unawaited(
+          cacheVideoFile(
+            url,
+            quality: quality,
+            headers: headers,
+          ),
         );
       }
       return cachedFile.path;
@@ -246,11 +255,12 @@ class VideoCacheManager {
 
     // If no cache, start caching in background and return network URL
     if (enableBackgroundCaching) {
-      cacheVideoFile(
-        url,
-        quality: quality,
-        headers: headers,
-        cacheInBackground: true,
+      unawaited(
+        cacheVideoFile(
+          url,
+          quality: quality,
+          headers: headers,
+        ),
       );
     }
 
@@ -310,22 +320,25 @@ class VideoCacheManager {
     final directory = await _getCacheDirectory();
     if (directory == null) return;
 
-    final files = directory.listSync().whereType<File>().toList();
-
-    // Sort by last modified time (oldest first)
-    files.sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
+    final files = directory.listSync().whereType<File>().toList()
+      // Sort by last modified time (oldest first)
+      ..sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
 
     // Remove files older than maxAge
     final cutoffDate = DateTime.now().subtract(maxAge);
-    var filesToDelete = files.where((file) =>
-        file.lastModifiedSync().isBefore(cutoffDate)).toList();
+    final filesToDelete = files
+        .where((file) => file.lastModifiedSync().isBefore(cutoffDate))
+        .toList();
 
     // If still too many files, remove oldest ones
     if (files.length - filesToDelete.length > maxFiles) {
-      final remainingFiles = files.where((file) =>
-          file.lastModifiedSync().isAfter(cutoffDate)).toList();
-      remainingFiles.sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
-      final additionalToDelete = remainingFiles.take(files.length - filesToDelete.length - maxFiles + 1).toList();
+      final remainingFiles = files
+          .where((file) => file.lastModifiedSync().isAfter(cutoffDate))
+          .toList()
+        ..sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
+      final additionalToDelete = remainingFiles
+          .take(files.length - filesToDelete.length - maxFiles + 1)
+          .toList();
       filesToDelete.addAll(additionalToDelete);
     }
 
@@ -367,7 +380,11 @@ class VideoCacheManager {
   }
 
   /// Get cached ranges for a video (as percentage of total duration)
-  Future<List<CachedRange>> getCachedRanges(String url, String? quality, int totalBytes) async {
+  Future<List<CachedRange>> getCachedRanges(
+    String url,
+    String? quality,
+    int totalBytes,
+  ) async {
     final cacheKey = _generateCacheKey(url, quality);
     final entry = _cacheEntries[cacheKey];
 
@@ -423,7 +440,7 @@ class VideoCacheManager {
     Map<String, String>? headers,
     void Function(double progress)? onProgress,
     int? startByte, // For partial caching
-    int? endByte,   // For partial caching
+    int? endByte, // For partial caching
   }) async {
     final client = http.Client();
     final request = http.Request('GET', Uri.parse(url));
@@ -463,14 +480,24 @@ class VideoCacheManager {
       total = endByte - startByte + 1;
     }
 
-    print('DEBUG: Download starting - Total bytes: $total, Range: $startByte-$endByte');
+    if (kDebugMode) {
+      print(
+        'DEBUG: Download starting - '
+        'Total bytes: $total, Range: $startByte-$endByte',
+      );
+    }
 
     await response.stream.forEach((chunk) {
       sink.add(chunk);
       downloaded += chunk.length;
       if (total > 0 && onProgress != null) {
         final progress = downloaded / total;
-        print('DEBUG: Download progress: ${(progress * 100).toInt()}% ($downloaded/$total)');
+        if (kDebugMode) {
+          print(
+            'DEBUG: Download progress: '
+            '${(progress * 100).toInt()}% ($downloaded/$total)',
+          );
+        }
         onProgress(progress);
       }
     });
@@ -478,7 +505,10 @@ class VideoCacheManager {
     await sink.close();
     client.close();
 
-    print('DEBUG: Download completed - Total downloaded: $downloaded bytes');
+    if (kDebugMode) {
+      print('DEBUG: Download completed '
+          '- Total downloaded: $downloaded bytes');
+    }
     return file;
   }
 
@@ -506,85 +536,5 @@ class VideoCacheManager {
       debugPrint('Failed to get cache directory: $e');
       return null;
     }
-  }
-}
-
-/// Cache entry for tracking cached files
-class _CacheEntry {
-  final String url;
-  final String? quality;
-  final File file;
-  DateTime lastAccessed;
-  final List<CachedRange> cachedRanges;
-
-  _CacheEntry({
-    required this.url,
-    required this.quality,
-    required this.file,
-    required this.lastAccessed,
-    this.cachedRanges = const [],
-  });
-}
-
-/// Represents a cached portion of a video file
-class CachedRange {
-  final int startByte;
-  final int endByte;
-  final DateTime cachedAt;
-
-  const CachedRange({
-    required this.startByte,
-    required this.endByte,
-    required this.cachedAt,
-  });
-
-  /// Get the size of this cached range in bytes
-  int get size => endByte - startByte + 1;
-
-  /// Check if a position (in bytes) is within this range
-  bool contains(int position) {
-    return position >= startByte && position <= endByte;
-  }
-
-  /// Merge this range with another if they overlap or are adjacent
-  CachedRange? merge(CachedRange other) {
-    if (endByte + 1 >= other.startByte && startByte <= other.endByte + 1) {
-      return CachedRange(
-        startByte: startByte < other.startByte ? startByte : other.startByte,
-        endByte: endByte > other.endByte ? endByte : other.endByte,
-        cachedAt: DateTime.now(),
-      );
-    }
-    return null;
-  }
-}
-
-/// Cache statistics
-class CacheStats {
-  final int fileCount;
-  final int totalSize;
-  final int cacheEntries;
-
-  CacheStats({
-    required this.fileCount,
-    required this.totalSize,
-    required this.cacheEntries,
-  });
-
-  factory CacheStats.empty() {
-    return CacheStats(fileCount: 0, totalSize: 0, cacheEntries: 0);
-  }
-
-  String get formattedSize {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    var size = totalSize.toDouble();
-    var unitIndex = 0;
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-
-    return '${size.toStringAsFixed(1)} ${units[unitIndex]}';
   }
 }

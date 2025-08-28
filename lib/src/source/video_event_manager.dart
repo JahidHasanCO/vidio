@@ -5,26 +5,6 @@ import 'package:vidio/src/model/models.dart';
 
 /// Manages all video player events and callbacks
 class VideoEventManager {
-  // Event callbacks
-  final VoidCallback? onBackButtonTap;
-  final void Function(String videoType)? onPlayingVideo;
-  final void Function(bool isPlaying)? onPlayButtonTap;
-  final ValueChanged<VideoPlayerValue>? onFastForward;
-  final ValueChanged<VideoPlayerValue>? onRewind;
-  final ValueChanged<VideoPlayerValue>? onPause;
-  final ValueChanged<VideoPlayerValue>? onDispose;
-  final ValueChanged<VideoPlayerValue>? onLiveDirectTap;
-  final void Function(bool showMenu, bool isQualityPickerVisible)? onShowMenu;
-  final void Function(VideoPlayerController controller)? onVideoInitCompleted;
-  final VoidCallback? onVideoListTap;
-  final void Function(List<File>? files)? onCacheFileCompleted;
-  final void Function(dynamic error)? onCacheFileFailed;
-  final VoidCallback? onFullScreenIconTap;
-  final VoidCallback? onPIPIconTap;
-  final void Function(bool value)? onAmbientModeChanged;
-  final ValueChanged<double>? onPlaybackSpeedChanged;
-  final VoidCallback? onSupportButtonTap;
-
   VideoEventManager({
     this.onBackButtonTap,
     this.onPlayingVideo,
@@ -45,6 +25,26 @@ class VideoEventManager {
     this.onPlaybackSpeedChanged,
     this.onSupportButtonTap,
   });
+
+  // Event callbacks
+  final VoidCallback? onBackButtonTap;
+  final void Function(String videoType)? onPlayingVideo;
+  final void Function(bool isPlaying)? onPlayButtonTap;
+  final ValueChanged<VideoPlayerValue>? onFastForward;
+  final ValueChanged<VideoPlayerValue>? onRewind;
+  final ValueChanged<VideoPlayerValue>? onPause;
+  final ValueChanged<VideoPlayerValue>? onDispose;
+  final ValueChanged<VideoPlayerValue>? onLiveDirectTap;
+  final void Function(bool showMenu, bool isQualityPickerVisible)? onShowMenu;
+  final void Function(VideoPlayerController controller)? onVideoInitCompleted;
+  final VoidCallback? onVideoListTap;
+  final void Function(List<File>? files)? onCacheFileCompleted;
+  final void Function(dynamic error)? onCacheFileFailed;
+  final VoidCallback? onFullScreenIconTap;
+  final VoidCallback? onPIPIconTap;
+  final void Function(bool value)? onAmbientModeChanged;
+  final ValueChanged<double>? onPlaybackSpeedChanged;
+  final VoidCallback? onSupportButtonTap;
 
   /// Safely calls the back button callback
   void callBackButtonTap() {

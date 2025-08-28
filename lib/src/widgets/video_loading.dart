@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:vidio/src/model/models.dart';
+import 'package:vidio/src/widgets/caching_progress_widget.dart';
 import 'package:vidio/vidio.dart';
-import 'caching_progress_widget.dart';
 
 /// A widget for loading UI that use while waiting for the video to load.
 class VideoLoading extends StatelessWidget {
@@ -54,13 +55,8 @@ class VideoLoading extends StatelessWidget {
                     width: 200,
                     child: CachingProgressWidget(
                       progress: cachingProgress!.progress,
-                      showLogs: false, // Don't show logs as requested
                       logs: cachingProgress!.logs,
-                      progressColor: Colors.blue,
-                      backgroundColor: Colors.grey,
-                      textColor: Colors.white,
-                      height: 6.0,
-                      showPercentage: true,
+                      height: 6,
                     ),
                   ),
                 ],

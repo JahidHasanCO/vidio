@@ -70,7 +70,8 @@ class VideoStyle {
   /// ```
   final TextStyle qualityStyle;
 
-  /// A custom [TextStyle] for the supported quality options in the dropdown popup. Default style is:
+  /// A custom [TextStyle] for the supported quality
+  /// options in the dropdown popup. Default style is:
   /// ```dart
   /// const TextStyle(color: Colors.white)
   /// ```
@@ -97,7 +98,8 @@ class VideoStyle {
   /// still detect gestures via [allowScrubbing].
   final EdgeInsets? progressIndicatorPadding;
 
-  /// A custom padding for the video length values (current position and video's duration).
+  /// A custom padding for the video length values
+  /// (current position and video's duration).
   final EdgeInsetsGeometry? videoDurationsPadding;
 
   /// A custom color for the play button's icon.
@@ -106,7 +108,8 @@ class VideoStyle {
   /// A custom size for the play button's icon.
   final double? playButtonIconSize;
 
-  /// The space between play, forward and backward buttons. Default value is 8.0.
+  /// The space between play, forward and
+  /// backward buttons. Default value is 8.0.
   final double spaceBetweenBottomBarButtons;
 
   /// A custom background color for the action bar that contains the
@@ -120,7 +123,8 @@ class VideoStyle {
   /// A custom background color for the quality options popup.
   final Color? qualityOptionsBgColor;
 
-  /// A custom margin to change the display position for the quality options popup.
+  /// A custom margin to change the display
+  /// position for the quality options popup.
   final EdgeInsetsGeometry? qualityOptionsMargin;
 
   /// A custom padding around the video quality option text.
@@ -129,7 +133,8 @@ class VideoStyle {
   /// A custom border radius for the quality options popup.
   final BorderRadius? qualityOptionsRadius;
 
-  /// The space between the fullscreen and the video quality buttons. Default value is 8.0.
+  /// The space between the fullscreen and
+  /// the video quality buttons. Default value is 8.0.
   final double qualityButtonAndFullScrIcoSpace;
 
   /// A custom size for the forward and backward buttons.
@@ -157,7 +162,8 @@ class VideoStyle {
   /// The padding around for the selected video quality text.
   final EdgeInsetsGeometry? videoQualityPadding;
 
-  /// The width for each item inside the video options popup. Default width is 90.0.
+  /// The width for each item inside
+  /// the video options popup. Default width is 90.0.
   final double qualityOptionWidth;
 
   /// Custom size for the full screen button's icon. Default size is 30.
@@ -166,7 +172,8 @@ class VideoStyle {
   /// Custom color for the fullscreen button. Default color is [Colors.white].
   final Color fullScreenIconColor;
 
-  /// If set to true, the direct button that use for a live stream video will be appeared and vice versa.
+  /// If set to true, the direct button that
+  /// use for a live stream video will be appeared and vice versa.
   final bool showLiveDirectButton;
 
   /// A custom display text for the live direct button.
@@ -181,11 +188,13 @@ class VideoStyle {
   /// A custom color for the live direct button. Default color is [Colors.grey].
   final Color liveDirectButtonDisableColor;
 
-  /// A custom size for the live direct button. The size button's size is 10 by default.
+  /// A custom size for the live direct button.
+  /// The size button's size is 10 by default.
   final double liveDirectButtonSize;
 
   /// If set to true the package will init the default orientations for the app.
-  /// If you want to handle your app's orientations programmatically just set this property to false.
+  /// If you want to handle your app's orientations
+  /// programmatically just set this property to false.
   final bool enableSystemOrientationsOverride;
 
   /// Specifies the set of orientations the application interface can

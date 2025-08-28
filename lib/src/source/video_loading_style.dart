@@ -25,7 +25,8 @@ class VideoLoadingStyle {
   /// Custom background color for the loading widget.
   final Color? loadingBackgroundColor;
 
-  /// Custom color for the loading indicator. If the value is null the color will be [Colors.amber]
+  /// Custom color for the loading indicator.
+  /// If the value is null the color will be [Colors.amber]
   final Color? loadingIndicatorValueColor;
 
   /// Custom loading text of the loading widget.
@@ -65,7 +66,8 @@ class VideoLoadingStyle {
   /// The space between the loading text and the loading indicator.
   final double spaceBetweenIndicatorAndText;
 
-  /// If you want to show both the loading indicator and the loading text you can set this property to [true]
-  /// and [false] to show the loading indicator only.
+  /// If you want to show both the loading indicator and
+  /// the loading text you can set this property to true
+  /// and false to show the loading indicator only.
   final bool showLoadingText;
 }

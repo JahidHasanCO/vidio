@@ -27,9 +27,12 @@ class VideoInitializer {
         // Play MP4 and WEBM video
         controller = VideoPlayerController.networkUrl(
           Uri.parse(url),
-          formatHint: videoFormat == 'MP4' ? VideoFormat.other : VideoFormat.other,
+          formatHint:
+              videoFormat == 'MP4' ? VideoFormat.other : VideoFormat.other,
           httpHeaders: headers ?? {},
-          closedCaptionFile: closedCaptionFile != null ? Future.value(closedCaptionFile) : null,
+          closedCaptionFile: closedCaptionFile != null
+              ? Future.value(closedCaptionFile)
+              : null,
           videoPlayerOptions: videoPlayerOptions,
         );
       } else if (videoFormat == 'MKV') {
@@ -38,7 +41,7 @@ class VideoInitializer {
           Uri.parse(url),
           formatHint: VideoFormat.other,
           httpHeaders: headers ?? {},
-         closedCaptionFile: closedCaptionFile,
+          closedCaptionFile: closedCaptionFile,
           videoPlayerOptions: videoPlayerOptions,
         );
       } else if (videoFormat == 'HLS') {
@@ -104,7 +107,9 @@ class VideoInitializer {
   }
 
   /// Disposes of a video controller safely
-  static Future<void> disposeController(VideoPlayerController? controller) async {
+  static Future<void> disposeController(
+    VideoPlayerController? controller,
+  ) async {
     try {
       await controller?.dispose();
     } catch (e) {

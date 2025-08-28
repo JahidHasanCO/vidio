@@ -3,24 +3,25 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
-import 'package:vidio/src/model/models.dart';
-import 'package:vidio/src/utils/utils.dart';
-import 'package:vidio/src/utils/video_parser.dart';
-import 'package:vidio/src/video_config_manager.dart';
-import 'package:vidio/src/video_error_handler.dart';
-import 'package:vidio/src/video_event_manager.dart';
-import 'package:vidio/src/video_managers.dart';
-import 'package:vidio/src/video_performance_manager.dart';
-import 'package:vidio/src/video_state_manager.dart';
+import 'package:vidio/src/cache/video_cache_manager.dart';
+import 'package:vidio/src/constants/video_player_config.dart';
+import 'package:vidio/src/model/model.dart';
+import 'package:vidio/src/source/video_event_manager.dart';
 import 'package:vidio/src/source/video_loading_style.dart';
+import 'package:vidio/src/source/video_playback_manager.dart';
 import 'package:vidio/src/source/video_style.dart';
-import 'package:vidio/src/video_ui_builder.dart';
+import 'package:vidio/src/utils/m3u8_manager.dart';
+import 'package:vidio/src/utils/utils.dart';
+import 'package:vidio/src/utils/video_error_handler.dart';
+import 'package:vidio/src/utils/video_managers.dart';
+import 'package:vidio/src/utils/video_parser.dart';
+import 'package:vidio/src/utils/video_performance_manager.dart';
+import 'package:vidio/src/utils/video_state_manager.dart';
+import 'package:vidio/src/utils/video_timing_manager.dart';
 import 'package:vidio/src/widgets/unlock_button.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
-import 'package:vidio/src/widgets/caching_progress_widget.dart';
-import 'package:vidio/src/video_cache_manager.dart';
+import 'package:vidio/src/widgets/video_ui_builder.dart';
 
 class Vidio extends StatefulWidget {
   const Vidio({
@@ -64,6 +65,7 @@ class Vidio extends StatefulWidget {
     this.isShowSupportButton = false,
     this.onSupportButtonTap,
   });
+
   final String url;
   final VideoStyle videoStyle;
   final VideoLoadingStyle videoLoadingStyle;
@@ -107,14 +109,14 @@ class Vidio extends StatefulWidget {
   State<Vidio> createState() => _VidioState();
 }
 
-class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+class _VidioState extends State<Vidio>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   String? videoFormat;
   bool loop = false;
   bool _managersInitialized = false;
 
   // Caching progress state
   CachingProgressData? _cachingProgress;
-  bool _isCachingInProgress = false;
   final List<String> _cacheLogs = [];
   String? _currentVideoUrl;
   int _currentVideoDurationMs = 0;
@@ -134,46 +136,83 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
   // Getters for manager properties
   VideoPlayerController? get controller => videoControllerManager.controller;
+
   List<M3U8Data> get m3u8UrlList => m3u8Manager.m3u8UrlList;
+
   List<AudioModel> get audioList => m3u8Manager.audioList;
+
   String get m3u8Quality => m3u8Manager.m3u8Quality;
+
   set m3u8Quality(String quality) => m3u8Manager.setQuality(quality);
 
   bool get fullScreen => uiStateManager.fullScreen;
+
   set fullScreen(bool value) => uiStateManager.fullScreen = value;
+
   bool get showMenu => uiStateManager.showMenu;
+
   set showMenu(bool value) => uiStateManager.showMenu = value;
+
   bool get isQualityPickerVisible => uiStateManager.isQualityPickerVisible;
-  set isQualityPickerVisible(bool value) => uiStateManager.isQualityPickerVisible = value;
+
+  set isQualityPickerVisible(bool value) =>
+      uiStateManager.isQualityPickerVisible = value;
+
   bool get isLocked => uiStateManager.isLocked;
+
   set isLocked(bool value) => uiStateManager.isLocked = value;
+
   bool get isAmbientMode => uiStateManager.isAmbientMode;
+
   set isAmbientMode(bool value) => uiStateManager.isAmbientMode = value;
+
   bool get hideQualityList => uiStateManager.hideQualityList;
+
   set hideQualityList(bool value) => uiStateManager.hideQualityList = value;
+
   bool get hasInitError => uiStateManager.hasInitError;
+
   set hasInitError(bool value) => uiStateManager.hasInitError = value;
+
   OverlayEntry? get overlayEntry => uiStateManager.overlayEntry;
+
   set overlayEntry(OverlayEntry? value) => uiStateManager.overlayEntry = value;
+
   GlobalKey get videoQualityKey => uiStateManager.videoQualityKey;
 
   String? get videoDuration => timingManager.videoDuration;
+
   set videoDuration(String? value) => timingManager.videoDuration = value;
+
   String? get videoSeek => timingManager.videoSeek;
+
   set videoSeek(String? value) => timingManager.videoSeek = value;
+
   Duration? get duration => timingManager.duration;
+
   set duration(Duration? value) => timingManager.duration = value;
+
   double? get videoSeekSecond => timingManager.videoSeekSecond;
+
   set videoSeekSecond(double? value) => timingManager.videoSeekSecond = value;
+
   double? get videoDurationSecond => timingManager.videoDurationSecond;
-  set videoDurationSecond(double? value) => timingManager.videoDurationSecond = value;
+
+  set videoDurationSecond(double? value) =>
+      timingManager.videoDurationSecond = value;
 
   double get playbackSpeed => playbackManager.playbackSpeed;
+
   set playbackSpeed(double value) => playbackManager.playbackSpeed = value;
+
   List<double> get playbackSpeeds => playbackManager.playbackSpeeds;
+
   Duration? get lastPlayedPos => playbackManager.lastPlayedPos;
+
   set lastPlayedPos(Duration? value) => playbackManager.lastPlayedPos = value;
+
   bool get isAtLivePosition => playbackManager.isAtLivePosition;
+
   set isAtLivePosition(bool value) => playbackManager.isAtLivePosition = value;
 
   // Legacy state variables (to be removed after full integration)
@@ -198,7 +237,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   @override
   void didUpdateWidget(covariant Vidio oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.playbackSpeed != oldWidget.playbackSpeed && widget.playbackSpeed != playbackSpeed) {
+    if (widget.playbackSpeed != oldWidget.playbackSpeed &&
+        widget.playbackSpeed != playbackSpeed) {
       setPlaybackSpeed(widget.playbackSpeed, notify: false);
     }
   }
@@ -284,29 +324,39 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    print('DEBUG: App lifecycle changed: $state');
+    if (kDebugMode) {
+      print('DEBUG: App lifecycle changed: $state');
+    }
 
     switch (state) {
       case AppLifecycleState.resumed:
         // App came back to foreground
-        if (controller != null && controller!.value.isPlaying && widget.allowCacheFile && !_isContinuousCachingActive) {
+        if (controller != null &&
+            controller!.value.isPlaying &&
+            widget.allowCacheFile &&
+            !_isContinuousCachingActive) {
           final currentUrl = controller!.dataSource;
           if (currentUrl.isNotEmpty) {
-            print('DEBUG: Resuming continuous caching after app resume');
+            if (kDebugMode) {
+              print('DEBUG: Resuming continuous caching after app resume');
+            }
             _startContinuousCaching(currentUrl);
           }
         }
-        break;
       case AppLifecycleState.paused:
         // App went to background - caching should continue
-        print('DEBUG: App paused, continuous caching will continue in background');
-        break;
+        if (kDebugMode) {
+          print(
+            'DEBUG: App paused, continuous caching will continue in background',
+          );
+        }
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         // App is inactive or detached
-        print('DEBUG: App inactive/detached, stopping continuous caching');
+        if (kDebugMode) {
+          print('DEBUG: App inactive/detached, stopping continuous caching');
+        }
         _stopContinuousCaching();
-        break;
       case AppLifecycleState.hidden:
         // App is hidden but still running
         break;
@@ -330,7 +380,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         }
       },
       child: AspectRatio(
-        aspectRatio: configManager.getAspectRatio(fullScreen, widget.aspectRatio),
+        aspectRatio:
+            configManager.getAspectRatio(fullScreen, widget.aspectRatio),
         child: controller?.value.isInitialized == false
             ? buildLoadingState()
             : buildVideoPlayer(),
@@ -374,7 +425,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
           controller!.rewind().whenComplete(
                 () => eventManager.callRewind(controller!.value),
               );
-        } else if (localPosition.dx > configManager.getFastForwardThreshold(width)) {
+        } else if (localPosition.dx >
+            configManager.getFastForwardThreshold(width)) {
           controller!.fastForward().whenComplete(
                 () => eventManager.callRewind(controller!.value),
               );
@@ -541,8 +593,6 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     );
   }
 
-
-
   Widget bottomBar() {
     return VideoUIBuilder.buildBottomBar(
       controller: controller,
@@ -574,15 +624,14 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     );
   }
 
-
-
   Widget m3u8List() {
     // Only create the overlay content if it should be visible
     if (!isQualityPickerVisible) {
       return const SizedBox.shrink();
     }
 
-    final renderBox = videoQualityKey.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox =
+        videoQualityKey.currentContext?.findRenderObject() as RenderBox?;
     final offset = renderBox?.localToGlobal(Offset.zero);
     return Container(
       key: videoQualityKey, // Use the GlobalKey here
@@ -590,8 +639,10 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         videoData: m3u8UrlList,
         videoStyle: widget.videoStyle,
         showPicker: isQualityPickerVisible,
-        positionRight: configManager.getQualityPickerPositionRight(renderBox?.size.width ?? 0.0),
-        positionTop: configManager.getQualityPickerPositionTop(offset?.dy ?? 0.0),
+        positionRight: configManager
+            .getQualityPickerPositionRight(renderBox?.size.width ?? 0.0),
+        positionTop:
+            configManager.getQualityPickerPositionTop(offset?.dy ?? 0.0),
         onQualitySelected: (data) {
           eventManager.handleQualitySelection(
             data,
@@ -623,7 +674,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
     final isNetwork = VideoParser.isNetworkUrl(url);
     final detectedFormat = VideoParser.determineVideoFormat(url);
-    
+
     setState(() {
       isOffline = !isNetwork;
       videoFormat = detectedFormat;
@@ -631,17 +682,21 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
     if (isNetwork && detectedFormat != null) {
       widget.onPlayingVideo?.call(detectedFormat);
-      
+
       if (detectedFormat == 'HLS') {
         videoControlSetup(url);
         getM3U8(url);
       } else {
         videoControlSetup(url);
-        
+
         // Handle caching for non-HLS formats
         if (widget.allowCacheFile) {
           final extension = detectedFormat.toLowerCase();
-          print('DEBUG: Starting caching for format: $detectedFormat, URL: $url');
+          if (kDebugMode) {
+            print(
+              'DEBUG: Starting caching for format: $detectedFormat, URL: $url',
+            );
+          }
           // Start caching immediately and also start background caching
           _startCaching(url, quality: extension);
         }
@@ -677,7 +732,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
       );
 
       if (result.hasError) {
-        errorHandler.handleParsingError(result.error, null, 'Failed to parse M3U8 playlist');
+        errorHandler.handleParsingError(
+          result.error,
+          null,
+          'Failed to parse M3U8 playlist',
+        );
         return null;
       }
 
@@ -692,7 +751,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
       errorHandler.handleParsingError(error, stackTrace, 'M3U8 parsing failed');
       return null;
     }
-  }  Future<void> videoControlSetup(String? url) async {
+  }
+
+  Future<void> videoControlSetup(String? url) async {
     videoInit(url);
     if (controller == null) return;
     controller?.addListener(listener);
@@ -746,7 +807,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         controller!.value.isInitialized) {
       final currentUrl = controller!.dataSource;
       if (currentUrl.isNotEmpty) {
-        print('DEBUG: Starting continuous caching - Video initialized');
+        if (kDebugMode) {
+          print('DEBUG: Starting continuous caching - Video initialized');
+        }
         _startContinuousCaching(currentUrl);
       }
     }
@@ -755,7 +818,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     if (controller != null &&
         controller!.value.position >= controller!.value.duration &&
         _isContinuousCachingActive) {
-      print('DEBUG: Stopping continuous caching - Video ended');
+      if (kDebugMode) {
+        print('DEBUG: Stopping continuous caching - Video ended');
+      }
       _stopContinuousCaching();
     }
 
@@ -768,10 +833,29 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
       // Log status every 5 seconds or when caching status changes
       final shouldLog = DateTime.now().second % 5 == 0;
       if (shouldLog) {
-        print('DEBUG: Video status: ${progress}% complete, Caching active: $_isContinuousCachingActive, Cached ranges: ${_cachedRanges.length}');
+        if (kDebugMode) {
+          print(
+            'DEBUG: Video status: $progress% complete, '
+            'Caching active: $_isContinuousCachingActive,'
+            ' Cached ranges: ${_cachedRanges.length}',
+          );
+        }
         if (_cachedRanges.isNotEmpty) {
-          print('DEBUG: Cached ranges: ${_cachedRanges.map((r) => '${r.startByte}-${r.endByte} (${(r.size / 1000000).toStringAsFixed(1)}MB)').join(', ')}');
-          print('DEBUG: Estimated file size: ${(_estimateFileSize() / 1000000).toStringAsFixed(1)}MB');
+          if (kDebugMode) {
+            print(
+              'DEBUG: Cached ranges: '
+              '${_cachedRanges.map(
+                    (r) => '${r.startByte}-${r.endByte} '
+                        '(${(r.size / 1000000).toStringAsFixed(1)}MB)',
+                  ).join(', ')}',
+            );
+          }
+          if (kDebugMode) {
+            print(
+              'DEBUG: Estimated file size: '
+              '${(_estimateFileSize() / 1000000).toStringAsFixed(1)}MB',
+            );
+          }
         }
       }
     }
@@ -819,13 +903,24 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     playbackManager.togglePlay(controller);
     final isPlaying = controller?.value.isPlaying ?? false;
 
-    print('DEBUG: Play state changed - Was playing: $wasPlaying, Now playing: $isPlaying');
+    if (kDebugMode) {
+      print(
+        'DEBUG: Play state changed - Was playing: '
+        '$wasPlaying, Now playing: $isPlaying',
+      );
+    }
 
-    // If video was paused and is now playing, ensure continuous caching is active
-    if (!wasPlaying && isPlaying && widget.allowCacheFile && !_isContinuousCachingActive) {
+    // If video was paused and is now playing,
+    // ensure continuous caching is active
+    if (!wasPlaying &&
+        isPlaying &&
+        widget.allowCacheFile &&
+        !_isContinuousCachingActive) {
       final currentUrl = controller!.dataSource;
       if (currentUrl.isNotEmpty) {
-        print('DEBUG: Resuming continuous caching after play');
+        if (kDebugMode) {
+          print('DEBUG: Resuming continuous caching after play');
+        }
         _startContinuousCaching(currentUrl);
       }
     }
@@ -837,7 +932,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   }
 
   void videoInit(String? url) {
-    performanceManager.measureExecutionTime(
+    performanceManager
+        .measureExecutionTime(
       () => videoControllerManager.initializeController(
         url ?? '',
         videoFormat,
@@ -846,9 +942,14 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         lastPlayedPos,
       ),
       operationName: 'videoInit',
-    ).then((result) {
+    )
+        .then((result) {
       if (result.hasError) {
-        errorHandler.handleInitializationError(result.error, null, 'Failed to initialize video controller');
+        errorHandler.handleInitializationError(
+          result.error,
+          null,
+          'Failed to initialize video controller',
+        );
         if (mounted) {
           setState(() => hasInitError = true);
         }
@@ -861,14 +962,18 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         // _clearCachingProgress();
       }
     }).catchError((dynamic error, StackTrace? stackTrace) {
-      errorHandler.handleInitializationError(error, stackTrace, 'Video initialization failed');
+      errorHandler.handleInitializationError(
+        error,
+        stackTrace,
+        'Video initialization failed',
+      );
       if (mounted) {
         setState(() => hasInitError = true);
       }
     });
 
     // Hide quality list for offline content
-    if (isOffline == true) {
+    if (isOffline ?? false) {
       hideQualityList = true;
     }
   }
@@ -891,12 +996,18 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   }
 
   void playLocalM3U8File(String url) {
-    performanceManager.measureExecutionTime(
+    performanceManager
+        .measureExecutionTime(
       () => videoControllerManager.playLocalM3U8File(url),
       operationName: 'playLocalM3U8File',
-    ).then((result) {
+    )
+        .then((result) {
       if (result.hasError) {
-        errorHandler.handlePlaybackError(result.error, null, 'Failed to play local M3U8 file');
+        errorHandler.handlePlaybackError(
+          result.error,
+          null,
+          'Failed to play local M3U8 file',
+        );
         if (mounted) {
           setState(() => hasInitError = true);
         }
@@ -907,7 +1018,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         seekToLastPlayingPosition();
       }
     }).catchError((dynamic error, StackTrace? stackTrace) {
-      errorHandler.handlePlaybackError(error, stackTrace, 'Local M3U8 playback failed');
+      errorHandler.handlePlaybackError(
+        error,
+        stackTrace,
+        'Local M3U8 playback failed',
+      );
       if (mounted) {
         setState(() => hasInitError = true);
       }
@@ -945,7 +1060,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
   void onPlayBackSpeedChange({required double speed}) {
     setPlaybackSpeed(speed);
-    if (controller?.value.isPlaying == true) {
+    if (controller?.value.isPlaying ?? false) {
       controller?.pause();
       controller?.play();
     } else {
@@ -957,7 +1072,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     if (mounted) {
       setState(() {
         loop = val;
-        if (controller?.value.isPlaying == true) {
+        if (controller?.value.isPlaying ?? false) {
           controller?.pause();
           controller?.setLooping(loop);
           controller?.play();
@@ -1058,7 +1173,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   void _updateCachingProgress(double progress, [String? log]) {
     if (!widget.allowCacheFile || !mounted) return;
 
-    print('DEBUG: Updating cache progress: ${(progress * 100).toInt()}%, log: $log');
+    if (kDebugMode) {
+      print(
+        'DEBUG: Updating cache progress: ${(progress * 100).toInt()}%, log: $log',
+      );
+    }
 
     // Only add logs if they're meaningful (not just progress updates)
     if (log != null && !log.contains('Cache progress:')) {
@@ -1070,10 +1189,14 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     }
 
     // Create more informative progress message
-    final segmentInfo = _cachedRanges.isNotEmpty ? ' (${_cachedRanges.length} segments cached)' : '';
-    final statusMessage = progress >= 1.0 ? 'Segment buffered ahead$segmentInfo' :
-                         progress > 0.0 ? 'Buffering segment... ${(progress * 100).toInt()}%$segmentInfo' :
-                         'Preparing buffer...$segmentInfo';
+    final segmentInfo = _cachedRanges.isNotEmpty
+        ? ' (${_cachedRanges.length} segments cached)'
+        : '';
+    final statusMessage = progress >= 1.0
+        ? 'Segment buffered ahead$segmentInfo'
+        : progress > 0.0
+            ? 'Buffering segment... ${(progress * 100).toInt()}%$segmentInfo'
+            : 'Preparing buffer...$segmentInfo';
 
     // Add status message to logs if it's meaningful
     if (statusMessage.isNotEmpty && !_cacheLogs.contains(statusMessage)) {
@@ -1088,9 +1211,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         _cachingProgress = CachingProgressData(
           progress: progress,
           logs: List.from(_cacheLogs),
-          isVisible: _isContinuousCachingActive || progress > 0.0, // Show when caching is active or in progress
+          isVisible: _isContinuousCachingActive ||
+              progress > 0.0, // Show when caching is active or in progress
         );
-        _isCachingInProgress = progress > 0.0;
       });
     }
   }
@@ -1098,25 +1221,33 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   /// Starts caching with progress tracking
   void _startCaching(String url, {String? quality}) {
     if (!widget.allowCacheFile) {
-      print('DEBUG: Caching disabled - allowCacheFile is false');
+      if (kDebugMode) {
+        print('DEBUG: Caching disabled - allowCacheFile is false');
+      }
       return;
     }
 
-    print('DEBUG: Starting caching for URL: $url with quality: $quality');
+    if (kDebugMode) {
+      print('DEBUG: Starting caching for URL: $url with quality: $quality');
+    }
     _currentVideoUrl = url;
     _cacheLogs.clear();
-    _updateCachingProgress(0.0, 'Starting background cache...');
+    _updateCachingProgress(0, 'Starting background cache...');
 
     VideoCacheManager().cacheVideoFile(
       url,
       quality: quality,
       headers: widget.headers,
       onProgress: (double progress) {
-        print('DEBUG: Cache progress update: ${(progress * 100).toInt()}%');
+        if (kDebugMode) {
+          print('DEBUG: Cache progress update: ${(progress * 100).toInt()}%');
+        }
         _updateCachingProgress(progress);
       },
       onLog: (String log) {
-        print('DEBUG: Cache log: $log');
+        if (kDebugMode) {
+          print('DEBUG: Cache log: $log');
+        }
         // Only log important events, not every progress update
         if (!log.contains('Cache progress:') &&
             !log.contains('Background cache progress:')) {
@@ -1124,26 +1255,33 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         }
       },
       onComplete: (File? file) {
-        print('DEBUG: Cache completed: ${file?.path}');
+        if (kDebugMode) {
+          print('DEBUG: Cache completed: ${file?.path}');
+        }
         if (file != null) {
-          _updateCachingProgress(1.0, 'Cache completed');
+          _updateCachingProgress(1, 'Cache completed');
           widget.onCacheFileCompleted?.call([file]);
           // Keep progress visible briefly then hide
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
-              _updateCachingProgress(0.0); // Hide progress
+              _updateCachingProgress(0); // Hide progress
             }
           });
         }
       },
       onError: (dynamic error) {
-        print('DEBUG: Cache error: $error');
-        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, 'Cache failed');
+        if (kDebugMode) {
+          print('DEBUG: Cache error: $error');
+        }
+        _updateCachingProgress(
+          _cachingProgress?.progress ?? 0.0,
+          'Cache failed',
+        );
         widget.onCacheFileFailed?.call(error);
         // Hide progress after error
         Future.delayed(const Duration(seconds: 3), () {
           if (mounted) {
-            _updateCachingProgress(0.0);
+            _updateCachingProgress(0);
           }
         });
       },
@@ -1154,7 +1292,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   void _startContinuousCaching(String url) {
     if (!widget.allowCacheFile || controller == null) return;
 
-    print('DEBUG: Starting continuous caching for: $url');
+    if (kDebugMode) {
+      print('DEBUG: Starting continuous caching for: $url');
+    }
     _currentVideoUrl = url;
     _cacheLogs.clear();
     _cachedRanges.clear(); // Clear previous cached ranges for new video
@@ -1173,29 +1313,45 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
   /// Caches the next segment in sequence
   void _cacheNextSegment() {
-    if (!widget.allowCacheFile || controller == null || _currentVideoUrl == null) {
-      print('DEBUG: Cannot cache next segment - missing requirements');
+    if (!widget.allowCacheFile ||
+        controller == null ||
+        _currentVideoUrl == null) {
+      if (kDebugMode) {
+        print('DEBUG: Cannot cache next segment - missing requirements');
+      }
       return;
     }
 
     final currentPosition = controller!.value.position.inMilliseconds;
     final totalDuration = _currentVideoDurationMs;
 
-    print('DEBUG: Next segment calculation:');
-    print('DEBUG:   Current position: ${currentPosition}ms (${Duration(milliseconds: currentPosition).inSeconds}s)');
-    print('DEBUG:   Total duration: ${totalDuration}ms (${Duration(milliseconds: totalDuration).inSeconds}s)');
-    print('DEBUG:   Caching active: $_isContinuousCachingActive');
-
+    if (kDebugMode) {
+      print('DEBUG: Next segment calculation:');
+      print(
+        'DEBUG:   Current position: ${currentPosition}ms'
+        ' (${Duration(milliseconds: currentPosition).inSeconds}s)',
+      );
+      print(
+        'DEBUG:   Total duration: ${totalDuration}ms'
+        ' (${Duration(milliseconds: totalDuration).inSeconds}s)',
+      );
+      print('DEBUG:   Caching active: $_isContinuousCachingActive');
+    }
     if (totalDuration == 0) {
-      print('DEBUG: Cannot cache next segment - invalid duration');
+      if (kDebugMode) {
+        print('DEBUG: Cannot cache next segment - invalid duration');
+      }
       return;
     }
 
     // Find the next position to cache (look for gaps in cached ranges)
-    final nextPositionMs = _findNextCachePosition(currentPosition, totalDuration);
+    final nextPositionMs =
+        _findNextCachePosition(currentPosition, totalDuration);
 
     if (nextPositionMs >= totalDuration) {
-      print('DEBUG: Reached end of video, stopping continuous cache');
+      if (kDebugMode) {
+        print('DEBUG: Reached end of video, stopping continuous cache');
+      }
       _isContinuousCachingActive = false;
       return;
     }
@@ -1205,7 +1361,12 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
     // Validate byte range
     if (startByte >= endByte || startByte < 0) {
-      print('DEBUG: Invalid byte range: $startByte - $endByte, trying next segment in 2 seconds');
+      if (kDebugMode) {
+        print(
+          'DEBUG: Invalid byte range: '
+          '$startByte - $endByte, trying next segment in 2 seconds',
+        );
+      }
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted && _isContinuousCachingActive) {
           _cacheNextSegment();
@@ -1216,7 +1377,12 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
     // Check if this range is already cached
     if (_isRangeCached(startByte, endByte)) {
-      print('DEBUG: Range already cached ($startByte-$endByte), trying next segment in 500ms');
+      if (kDebugMode) {
+        print(
+          'DEBUG: Range already cached '
+          '($startByte-$endByte), trying next segment in 500ms',
+        );
+      }
       // Try next segment
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted && _isContinuousCachingActive) {
@@ -1226,19 +1392,24 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
       return;
     }
 
-    print('DEBUG: Caching next segment: $startByte - $endByte (time: ${Duration(milliseconds: nextPositionMs).inSeconds}s - ${Duration(milliseconds: (nextPositionMs + 30000).clamp(0, totalDuration)).inSeconds}s)');
+    if (kDebugMode) {
+      print(
+        'DEBUG: Caching next segment: $startByte - $endByte '
+        '(time: ${Duration(milliseconds: nextPositionMs).inSeconds}s - '
+        '${Duration(milliseconds: (nextPositionMs + 30000).clamp(0, totalDuration)).inSeconds}s)',
+      );
+    }
 
     VideoCacheManager().cacheVideoFilePartial(
       _currentVideoUrl!,
       startByte: startByte,
       endByte: endByte,
       headers: widget.headers,
-      onProgress: (double progress) {
-        // Show progress for current segment
-        _updateCachingProgress(progress);
-      },
+      onProgress: _updateCachingProgress,
       onRangeCached: (int start, int end) {
-        print('DEBUG: Range cached successfully: $start - $end');
+        if (kDebugMode) {
+          print('DEBUG: Range cached successfully: $start - $end');
+        }
         _addCachedRange(start, end);
         if (mounted) {
           setState(() {}); // Update UI to show new cached range
@@ -1246,31 +1417,55 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
         // Update overall progress
         final overallProgress = getOverallCachingProgress();
-        print('DEBUG: Overall caching progress: ${(overallProgress * 100).toInt()}%');
+        if (kDebugMode) {
+          print(
+            'DEBUG: Overall caching progress: '
+            '${(overallProgress * 100).toInt()}%',
+          );
+        }
       },
       onLog: (String log) {
         if (log.contains('Cache completed') ||
             log.contains('Cache failed') ||
             log.contains('Starting')) {
-          print('DEBUG: Cache log: $log');
+          if (kDebugMode) {
+            print('DEBUG: Cache log: $log');
+          }
         }
       },
       onComplete: (File? file) {
         if (file != null) {
-          print('DEBUG: Segment cache completed successfully, queuing next segment in 1 second');
+          if (kDebugMode) {
+            print(
+              'DEBUG: Segment cache completed successfully, '
+              'queuing next segment in 1 second',
+            );
+          }
           widget.onCacheFileCompleted?.call([file]);
 
           // Continue with next segment after a short delay
           Future.delayed(const Duration(seconds: 1), () {
             if (mounted && _isContinuousCachingActive) {
-              print('DEBUG: Starting next segment after delay');
+              if (kDebugMode) {
+                print('DEBUG: Starting next segment after delay');
+              }
               _cacheNextSegment();
             } else {
-              print('DEBUG: Not starting next segment - mounted: $mounted, caching active: $_isContinuousCachingActive');
+              if (kDebugMode) {
+                print(
+                  'DEBUG: Not starting next segment - mounted: '
+                  '$mounted, caching active: $_isContinuousCachingActive',
+                );
+              }
             }
           });
         } else {
-          print('DEBUG: Segment cache completed but no file returned, trying next segment in 2 seconds');
+          if (kDebugMode) {
+            print(
+              'DEBUG: Segment cache completed but no '
+              'file returned, trying next segment in 2 seconds',
+            );
+          }
           // Try next segment after error
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted && _isContinuousCachingActive) {
@@ -1280,11 +1475,18 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         }
       },
       onError: (dynamic error) {
-        print('DEBUG: Segment cache error: $error, trying next segment in 2 seconds');
+        if (kDebugMode) {
+          print(
+            'DEBUG: Segment cache error: '
+            '$error, trying next segment in 2 seconds',
+          );
+        }
         // Try next segment after error
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted && _isContinuousCachingActive) {
-            print('DEBUG: Retrying after error');
+            if (kDebugMode) {
+              print('DEBUG: Retrying after error');
+            }
             _cacheNextSegment();
           }
         });
@@ -1294,22 +1496,25 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
   /// Stops continuous caching
   void _stopContinuousCaching() {
-    print('DEBUG: Stopping continuous caching');
+    if (kDebugMode) {
+      print('DEBUG: Stopping continuous caching');
+    }
     _isContinuousCachingActive = false;
 
     // Only update progress if widget is still mounted
     if (mounted) {
-      _updateCachingProgress(0.0); // Hide progress
+      _updateCachingProgress(0); // Hide progress
     }
 
     // Clear current video URL to prevent accidental restarts
     _currentVideoUrl = null;
   }
 
-  /// Finds the next position that needs to be cached (looks for gaps in cached ranges)
+  /// Finds the next position that needs to be cached
+  /// (looks for gaps in cached ranges)
   int _findNextCachePosition(int currentPositionMs, int totalDurationMs) {
     // Always try to cache ahead of current position first
-    final cacheAheadMs = 30000; // 30 seconds ahead
+    const cacheAheadMs = 30000; // 30 seconds ahead
     var nextPositionMs = currentPositionMs + cacheAheadMs;
 
     // If we have cached ranges, look for gaps
@@ -1319,7 +1524,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         ..sort((a, b) => a.startByte.compareTo(b.startByte));
 
       // Convert current position to byte position for comparison
-      final currentBytePos = _calculateCacheStartByte(currentPositionMs, totalDurationMs);
+      final currentBytePos =
+          _calculateCacheStartByte(currentPositionMs, totalDurationMs);
 
       // Look for gaps in cached ranges
       for (var i = 0; i < sortedRanges.length; i++) {
@@ -1340,7 +1546,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
           final gapEnd = nextRange.startByte;
 
           // If there's a significant gap, cache it
-          if (gapEnd - gapStart > 1000000) { // 1MB gap
+          if (gapEnd - gapStart > 1000000) {
+            // 1MB gap
             final timeProgress = gapStart / _estimateFileSize();
             nextPositionMs = (timeProgress * totalDurationMs).toInt();
             break;
@@ -1350,13 +1557,16 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     }
 
     // Ensure we don't exceed video duration
-    return nextPositionMs.clamp(0, totalDurationMs - 1000); // Leave 1 second margin
+    return nextPositionMs.clamp(
+      0,
+      totalDurationMs - 1000,
+    ); // Leave 1 second margin
   }
 
   /// Calculates start byte for caching based on playback position
   int _calculateCacheStartByte(int currentPositionMs, int totalDurationMs) {
     // Start caching from current position + 10 seconds buffer
-    final bufferMs = 10000;
+    const bufferMs = 10000;
     final startMs = (currentPositionMs + bufferMs).clamp(0, totalDurationMs);
 
     // Estimate byte position (rough approximation)
@@ -1367,7 +1577,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   /// Calculates end byte for caching
   int _calculateCacheEndByte(int currentPositionMs, int totalDurationMs) {
     // Cache 30 seconds ahead
-    final cacheAheadMs = 30000;
+    const cacheAheadMs = 30000;
     final endMs = (currentPositionMs + cacheAheadMs).clamp(0, totalDurationMs);
 
     final progressRatio = endMs / totalDurationMs;
@@ -1378,12 +1588,18 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   int _estimateFileSize() {
     if (_currentVideoDurationMs == 0) return 0;
 
-    // More realistic estimation for video files: assume 50MB per minute (typical for HD video)
+    // More realistic estimation for video files:
+    // assume 50MB per minute (typical for HD video)
     const bytesPerMinute = 50000000; // 50MB per minute
     final durationMinutes = _currentVideoDurationMs / 60000.0;
     final estimatedSize = (durationMinutes * bytesPerMinute).toInt();
 
-    print('DEBUG: Estimated file size: ${estimatedSize ~/ 1000000}MB for ${durationMinutes.toStringAsFixed(1)} minutes');
+    if (kDebugMode) {
+      print(
+        'DEBUG: Estimated file size: ${estimatedSize ~/ 1000000}MB '
+        'for ${durationMinutes.toStringAsFixed(1)} minutes',
+      );
+    }
     return estimatedSize;
   }
 
@@ -1398,8 +1614,12 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
     // Merge overlapping ranges
     _mergeCachedRanges();
-
-    print('DEBUG: Added cached range: $startByte - $endByte, total ranges: ${_cachedRanges.length}');
+    if (kDebugMode) {
+      print(
+        'DEBUG: Added cached range: '
+        '$startByte - $endByte, total ranges: ${_cachedRanges.length}',
+      );
+    }
   }
 
   /// Merges overlapping cached ranges
@@ -1417,7 +1637,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         // Merge overlapping ranges
         current = CachedRange(
           startByte: current.startByte,
-          endByte: current.endByte > next.endByte ? current.endByte : next.endByte,
+          endByte:
+              current.endByte > next.endByte ? current.endByte : next.endByte,
           cachedAt: DateTime.now(),
         );
       } else {
@@ -1426,9 +1647,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
       }
     }
     merged.add(current);
-
-    _cachedRanges.clear();
-    _cachedRanges.addAll(merged);
+    _cachedRanges
+      ..clear()
+      ..addAll(merged);
   }
 
   /// Checks if a byte range is already cached
@@ -1439,7 +1660,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
     var cachedBytes = 0;
     for (final range in _cachedRanges) {
-      final overlapStart = startByte > range.startByte ? startByte : range.startByte;
+      final overlapStart =
+          startByte > range.startByte ? startByte : range.startByte;
       final overlapEnd = endByte < range.endByte ? endByte : range.endByte;
 
       if (overlapStart < overlapEnd) {
@@ -1451,7 +1673,13 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     final cachedRatio = cachedBytes / rangeSize;
     final isCached = cachedRatio > 0.5;
 
-    print('DEBUG: Range $startByte-$endByte: ${cachedBytes} cached bytes (${(cachedRatio * 100).toInt()}%), considered cached: $isCached');
+    if (kDebugMode) {
+      print(
+        'DEBUG: Range $startByte-$endByte: '
+        '$cachedBytes cached bytes (${(cachedRatio * 100).toInt()}%),'
+        ' considered cached: $isCached',
+      );
+    }
 
     return isCached;
   }
@@ -1461,12 +1689,13 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     return List.from(_cachedRanges);
   }
 
-  /// Gets the overall caching progress (0.0 to 1.0) based on cached ranges vs estimated total
+  /// Gets the overall caching progress (0.0 to 1.0)
+  /// based on cached ranges vs estimated total
   double getOverallCachingProgress() {
-    if (_cachedRanges.isEmpty || _currentVideoDurationMs == 0) return 0.0;
+    if (_cachedRanges.isEmpty || _currentVideoDurationMs == 0) return 0;
 
     final estimatedTotalBytes = _estimateFileSize();
-    if (estimatedTotalBytes == 0) return 0.0;
+    if (estimatedTotalBytes == 0) return 0;
 
     var totalCachedBytes = 0;
     for (final range in _cachedRanges) {
@@ -1474,57 +1703,5 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
     }
 
     return (totalCachedBytes / estimatedTotalBytes).clamp(0.0, 1.0);
-  }
-
-  /// Starts background caching during video playback (YouTube-style)
-  void _startBackgroundCaching(String url) {
-    if (!widget.allowCacheFile) return;
-
-    _cacheLogs.clear();
-    _updateCachingProgress(0.0, 'Buffering ahead...');
-
-    VideoCacheManager().cacheVideoFile(
-      url,
-      headers: widget.headers,
-      onProgress: (double progress) {
-        _updateCachingProgress(progress);
-      },
-      onLog: (String log) {
-        // Only log important events during background caching
-        if (log.contains('Cache completed') ||
-            log.contains('Cache failed') ||
-            log.contains('Starting background')) {
-          _updateCachingProgress(_cachingProgress?.progress ?? 0.0, log);
-        }
-      },
-      onComplete: (File? file) {
-        if (file != null) {
-          _updateCachingProgress(1.0, 'Buffered successfully');
-          widget.onCacheFileCompleted?.call([file]);
-          // Hide progress after a short delay
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) {
-              setState(() {
-                _cachingProgress = null;
-                _isCachingInProgress = false;
-              });
-            }
-          });
-        }
-      },
-      onError: (dynamic error) {
-        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, 'Buffering failed');
-        widget.onCacheFileFailed?.call(error);
-        // Hide progress after error
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() {
-              _cachingProgress = null;
-              _isCachingInProgress = false;
-            });
-          }
-        });
-      },
-    );
   }
 }
