@@ -47,15 +47,23 @@ class _SeekSliderState extends State<SeekSlider> {
   }
 
   @override
-  void dispose() {
-    widget.controller.removeListener(listener);
-    super.dispose();
+  void didUpdateWidget(SeekSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Force rebuild when cached ranges change
+    if (oldWidget.cachedRanges?.length != widget.cachedRanges?.length) {
+      if (mounted) {
+        setState(() {});
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final duration = widget.controller.value.duration.inMilliseconds.toDouble();
     if (duration <= 0) return const SizedBox();
+
+    // Create a key based on cached ranges to force rebuild when ranges change
+    final rangesKey = widget.cachedRanges?.map((r) => '${r.startByte}-${r.endByte}').join(',') ?? '';
 
     return SliderTheme(
       data: SliderTheme.of(context).copyWith(
@@ -85,6 +93,7 @@ class _SeekSliderState extends State<SeekSlider> {
             const TextStyle(color: Colors.white, fontSize: 16),
       ),
       child: Slider(
+        key: ValueKey('slider_$rangesKey'), // Force rebuild when ranges change
         max: duration,
         value: _currentValue,
         label: _formatDuration(Duration(milliseconds: _currentValue.round())),
@@ -210,8 +219,8 @@ class CachedProgressTrackShape extends RoundedRectSliderTrackShape {
   /// Estimates total bytes based on cached ranges and duration
   int _estimateTotalBytes(double totalDurationMs) {
     if (cachedRanges == null || cachedRanges!.isEmpty) {
-      // Rough estimation: assume 500KB per minute (typical for video)
-      const bytesPerMinute = 30000000; // 30MB per minute
+      // Use same estimation as video player: 50MB per minute for video files
+      const bytesPerMinute = 50000000; // 50MB per minute
       return ((totalDurationMs / 60000) * bytesPerMinute).toInt();
     }
 
