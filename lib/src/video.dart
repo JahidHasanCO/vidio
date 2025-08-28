@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
+import 'package:vidio/src/constants/video_constants.dart';
 import 'package:vidio/src/model/models.dart';
 import 'package:vidio/src/responses/regex_response.dart';
 import 'package:vidio/src/utils/utils.dart';
@@ -75,7 +76,7 @@ class Vidio extends StatefulWidget {
   final ValueChanged<VideoPlayerValue>? onPause;
   final ValueChanged<VideoPlayerValue>? onDispose;
   final ValueChanged<VideoPlayerValue>? onLiveDirectTap;
-  final void Function(bool showMenu, bool m3u8Show)? onShowMenu;
+  final void Function(bool showMenu, bool isQualityPickerVisible)? onShowMenu;
   final void Function(VideoPlayerController controller)? onVideoInitCompleted;
   final void Function()? onVideoListTap;
   final Map<String, String>? headers;
@@ -105,7 +106,7 @@ class Vidio extends StatefulWidget {
 }
 
 class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
-  String? playType;
+  String? videoFormat;
   bool loop = false;
   late AnimationController controlBarAnimationController;
   Animation<double>? controlTopBarAnimation;
@@ -124,13 +125,13 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   List<AudioModel> audioList = [];
   String? m3u8Content;
   String? subtitleContent;
-  bool m3u8Show = false;
+  bool isQualityPickerVisible = false;
   bool fullScreen = false;
   bool showMenu = false;
   bool showSubtitles = false;
   bool? isOffline;
   String m3u8Quality = 'Auto';
-  Timer? showTime;
+  Timer? controlHideTimer;
   OverlayEntry? overlayEntry;
   GlobalKey videoQualityKey = GlobalKey();
   Duration? lastPlayedPos;
@@ -166,7 +167,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     fullScreen = widget.initFullScreen;
     isAmbientMode = widget.isAmbientMode;
     playbackSpeed = widget.playbackSpeed;
-    urlCheck(widget.url);
+    determineVideoSource(widget.url);
     controlBarAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -567,7 +568,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     return VideoQualityPicker(
       videoData: m3u8UrlList,
       videoStyle: widget.videoStyle,
-      showPicker: m3u8Show,
+      showPicker: isQualityPickerVisible,
       positionRight: (renderBox?.size.width ?? 0.0) / 3,
       positionTop: (offset?.dy ?? 0.0) + 35.0,
       onQualitySelected: (data) {
@@ -578,7 +579,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           onSelectQuality(data);
         }
         setState(() {
-          m3u8Show = false;
+          isQualityPickerVisible = false;
         });
         removeOverlay();
       },
@@ -586,7 +587,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     );
   }
 
-  void urlCheck(String url) {
+  void determineVideoSource(String url) {
     final netRegex = RegExp(RegexResponse.regexHTTP);
     final isNetwork = netRegex.hasMatch(url);
     final uri = Uri.parse(url);
@@ -596,7 +597,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       });
       if (uri.pathSegments.last.endsWith('mkv')) {
         setState(() {
-          playType = 'MKV';
+          videoFormat = 'MKV';
         });
         widget.onPlayingVideo?.call('MKV');
 
@@ -615,7 +616,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         }
       } else if (uri.pathSegments.last.endsWith('mp4')) {
         setState(() {
-          playType = 'MP4';
+          videoFormat = 'MP4';
         });
         widget.onPlayingVideo?.call('MP4');
 
@@ -634,7 +635,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         }
       } else if (uri.pathSegments.last.endsWith('webm')) {
         setState(() {
-          playType = 'WEBM';
+          videoFormat = 'WEBM';
         });
         widget.onPlayingVideo?.call('WEBM');
 
@@ -653,7 +654,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         }
       } else if (uri.pathSegments.last.endsWith('m3u8')) {
         setState(() {
-          playType = 'HLS';
+          videoFormat = 'HLS';
         });
         widget.onPlayingVideo?.call('M3U8');
         videoControlSetup(url);
@@ -675,10 +676,10 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     if (m3u8UrlList.isNotEmpty) {
       m3u8Clean();
     }
-    m3u8Video(videoUrl);
+    parseM3U8Playlist(videoUrl);
   }
 
-  Future<M3U8s?> m3u8Video(String? videoUrl) async {
+  Future<M3U8s?> parseM3U8Playlist(String? videoUrl) async {
     m3u8UrlList.add(M3U8Data(dataQuality: 'Auto', dataURL: videoUrl));
 
     final regExp = RegExp(
@@ -700,7 +701,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
               Uri.parse(videoUrl),
               headers: widget.headers,
             )
-            .timeout(const Duration(seconds: 20));
+            .timeout(VideoConstants.kNetworkTimeout);
         if (response.statusCode == 200) {
           m3u8Content = utf8.decode(response.bodyBytes);
 
@@ -848,14 +849,14 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
   void createHideControlBarTimer() {
     clearHideControlBarTimer();
-    showTime = Timer(const Duration(milliseconds: 5000), () {
+    controlHideTimer = Timer(VideoConstants.kControlHideDuration, () {
       if (controller?.value.isPlaying == true) {
         if (showMenu && mounted) {
           setState(() {
             showMenu = false;
-            m3u8Show = false;
+            isQualityPickerVisible = false;
             controlBarAnimationController.reverse();
-            widget.onShowMenu?.call(showMenu, m3u8Show);
+            widget.onShowMenu?.call(showMenu, isQualityPickerVisible);
             removeOverlay();
           });
         }
@@ -864,7 +865,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   }
 
   void clearHideControlBarTimer() {
-    showTime?.cancel();
+    controlHideTimer?.cancel();
   }
 
   void toggleControls() {
@@ -874,16 +875,16 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       setState(() {
         showMenu = true;
       });
-      widget.onShowMenu?.call(showMenu, m3u8Show);
+      widget.onShowMenu?.call(showMenu, isQualityPickerVisible);
 
       createHideControlBarTimer();
     } else {
       setState(() {
-        m3u8Show = false;
+        isQualityPickerVisible = false;
         showMenu = false;
       });
 
-      widget.onShowMenu?.call(showMenu, m3u8Show);
+      widget.onShowMenu?.call(showMenu, isQualityPickerVisible);
     }
     if (showMenu) {
       controlBarAnimationController.forward();
@@ -908,7 +909,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
   void videoInit(String? url) {
     if (isOffline == false) {
-      if (playType == 'MP4' || playType == 'WEBM') {
+      if (videoFormat == 'MP4' || videoFormat == 'WEBM') {
         // Play MP4 and WEBM video
         controller = VideoPlayerController.networkUrl(
           Uri.parse(url!),
@@ -917,7 +918,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           closedCaptionFile: widget.closedCaptionFile,
           videoPlayerOptions: widget.videoPlayerOptions,
         )..initialize().then((value) => seekToLastPlayingPosition);
-      } else if (playType == 'MKV') {
+      } else if (videoFormat == 'MKV') {
         controller = VideoPlayerController.networkUrl(
           Uri.parse(url!),
           formatHint: VideoFormat.dash,
@@ -925,7 +926,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
           closedCaptionFile: widget.closedCaptionFile,
           videoPlayerOptions: widget.videoPlayerOptions,
         )..initialize().then((value) => seekToLastPlayingPosition);
-      } else if (playType == 'HLS') {
+      } else if (videoFormat == 'HLS') {
         controller = VideoPlayerController.networkUrl(
           Uri.parse(url!),
           formatHint: VideoFormat.hls,
@@ -1119,7 +1120,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                         onSelectQuality(data);
                       }
                       setState(() {
-                        m3u8Show = false;
+                        isQualityPickerVisible = false;
                       });
                       Navigator.pop(context);
                     },
@@ -1152,7 +1153,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                   trailing: Switch(
                     value: loop,
-                    activeColor: const Color(0xfff70808),
+                    activeColor: VideoConstants.kPrimaryColor,
                     onChanged: (val) {
                       setState(() {
                         loop = val;
