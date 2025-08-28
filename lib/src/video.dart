@@ -692,7 +692,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       videoFormat: videoFormat,
       isOffline: isOffline ?? false,
       headers: widget.headers,
-      closedCaptionFile: widget.closedCaptionFile,
+      closedCaptionFile: widget.closedCaptionFile ,
       videoPlayerOptions: widget.videoPlayerOptions,
       allowCacheFile: widget.allowCacheFile,
       onCacheFileCompleted: widget.onCacheFileCompleted,

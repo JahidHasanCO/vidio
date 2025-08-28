@@ -14,7 +14,7 @@ class VideoInitializer {
     required String? videoFormat,
     required bool isOffline,
     Map<String, String>? headers,
-    ClosedCaptionFile? closedCaptionFile,
+    Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     bool allowCacheFile = false,
     void Function(List<File>?)? onCacheFileCompleted,
@@ -29,7 +29,7 @@ class VideoInitializer {
           Uri.parse(url),
           formatHint: videoFormat == 'MP4' ? VideoFormat.other : VideoFormat.other,
           httpHeaders: headers ?? {},
-          closedCaptionFile: closedCaptionFile,
+          closedCaptionFile: closedCaptionFile != null ? Future.value(closedCaptionFile) : null,
           videoPlayerOptions: videoPlayerOptions,
         );
       } else if (videoFormat == 'MKV') {
@@ -38,7 +38,7 @@ class VideoInitializer {
           Uri.parse(url),
           formatHint: VideoFormat.other,
           httpHeaders: headers ?? {},
-          closedCaptionFile: closedCaptionFile,
+         closedCaptionFile: closedCaptionFile,
           videoPlayerOptions: videoPlayerOptions,
         );
       } else if (videoFormat == 'HLS') {
