@@ -108,6 +108,7 @@ class Vidio extends StatefulWidget {
 class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   String? videoFormat;
   bool loop = false;
+  bool _managersInitialized = false;
 
   // Manager instances
   late VideoControllerManager videoControllerManager;
@@ -200,6 +201,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
     // Initialize all managers
     _initializeManagers();
+    _managersInitialized = true;
     uiStateManager.initializeAnimations(this);
     determineVideoSource(widget.url);
   }
@@ -258,6 +260,11 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // Prevent accessing managers before they're initialized
+    if (!_managersInitialized) {
+      return buildLoadingState();
+    }
+
     return PopScope(
       onPopInvoked: (result) {
         if (fullScreen) {
