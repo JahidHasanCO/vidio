@@ -58,6 +58,9 @@ class _SeekSliderState extends State<SeekSlider> {
     final duration = widget.controller.value.duration.inMilliseconds.toDouble();
     if (duration <= 0) return const SizedBox();
 
+    // Create a key based on cached ranges to force rebuild when ranges change
+    final rangesKey = widget.cachedRanges?.map((r) => '${r.startByte}-${r.endByte}').join(',') ?? '';
+
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -90,6 +93,7 @@ class _SeekSliderState extends State<SeekSlider> {
                 const TextStyle(color: Colors.white, fontSize: 16),
           ),
           child: Slider(
+            key: ValueKey('slider_$rangesKey'), // Force rebuild when ranges change
             max: duration,
             value: _currentValue,
             label: _formatDuration(Duration(milliseconds: _currentValue.round())),
@@ -186,14 +190,34 @@ class _SeekSliderState extends State<SeekSlider> {
 
   /// Converts byte position to progress (0.0 to 1.0) based on estimated file size
   double _byteToProgress(int bytePosition, double totalDurationMs) {
-    // Rough estimation: assume linear relationship between bytes and time
-    // This is a simplification - in reality, bitrate may vary
-    const estimatedBytesPerSecond = 500000; // 500KB/s average
-    final estimatedTotalBytes = (totalDurationMs / 1000) * estimatedBytesPerSecond;
+    if (totalDurationMs <= 0) return 0.0;
+
+    // Estimate bytes per millisecond based on current cached ranges
+    final estimatedTotalBytes = _estimateTotalBytes(totalDurationMs);
 
     if (estimatedTotalBytes <= 0) return 0.0;
 
     return (bytePosition / estimatedTotalBytes).clamp(0.0, 1.0);
+  }
+
+  /// Estimates total bytes based on cached ranges and duration
+  int _estimateTotalBytes(double totalDurationMs) {
+    if (widget.cachedRanges == null || widget.cachedRanges!.isEmpty) {
+      // Rough estimation: assume 500KB per minute (typical for video)
+      const bytesPerMinute = 30000000; // 30MB per minute
+      return ((totalDurationMs / 60000) * bytesPerMinute).toInt();
+    }
+
+    // Use the highest byte position from cached ranges as estimation
+    var maxByte = 0;
+    for (final range in widget.cachedRanges!) {
+      if (range.endByte > maxByte) {
+        maxByte = range.endByte;
+      }
+    }
+
+    // Assume the file is at least 20% larger than the highest cached byte
+    return (maxByte * 1.2).toInt();
   }
 
   String _formatDuration(Duration duration) {

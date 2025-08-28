@@ -456,19 +456,29 @@ class VideoCacheManager {
 
     final sink = file.openWrite();
     var downloaded = 0;
-    final total = response.contentLength ?? 0;
+    var total = response.contentLength ?? 0;
+
+    // For partial downloads, calculate total based on range
+    if (startByte != null && endByte != null) {
+      total = endByte - startByte + 1;
+    }
+
+    print('DEBUG: Download starting - Total bytes: $total, Range: $startByte-$endByte');
 
     await response.stream.forEach((chunk) {
       sink.add(chunk);
       downloaded += chunk.length;
       if (total > 0 && onProgress != null) {
-        onProgress(downloaded / total);
+        final progress = downloaded / total;
+        print('DEBUG: Download progress: ${(progress * 100).toInt()}% ($downloaded/$total)');
+        onProgress(progress);
       }
     });
 
     await sink.close();
     client.close();
 
+    print('DEBUG: Download completed - Total downloaded: $downloaded bytes');
     return file;
   }
 
