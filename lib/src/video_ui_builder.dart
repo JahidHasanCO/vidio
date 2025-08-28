@@ -12,6 +12,8 @@ import 'package:vidio/src/widgets/unlock_button.dart';
 import 'package:vidio/src/widgets/video_loading.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
 
+import 'widgets/ambient_mode_settings.dart';
+
 /// Builds UI components for the video player
 class VideoUIBuilder {
   /// Builds the loading state widget
@@ -396,12 +398,12 @@ class VideoUIBuilder {
                   },
                 ),
                 // AmbientModeSettings would need to be imported or defined
-                // AmbientModeSettings(
-                //   value: isAmbientMode,
-                //   onChanged: ({bool? value}) {
-                //     onAmbientModeChanged(value ?? false);
-                //   },
-                // ),
+                AmbientModeSettings(
+                  value: isAmbientMode,
+                  onChanged: ({bool? value}) {
+                    onAmbientModeChanged(value ?? false);
+                  },
+                ),
                 const SizedBox(height: 10),
               ],
             ),
