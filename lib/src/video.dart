@@ -577,33 +577,41 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
 
 
   Widget m3u8List() {
+    // Only create the overlay content if it should be visible
+    if (!isQualityPickerVisible) {
+      return const SizedBox.shrink();
+    }
+
     final renderBox = videoQualityKey.currentContext?.findRenderObject() as RenderBox?;
     final offset = renderBox?.localToGlobal(Offset.zero);
-    return VideoQualityPicker(
-      videoData: m3u8UrlList,
-      videoStyle: widget.videoStyle,
-      showPicker: isQualityPickerVisible,
-      positionRight: configManager.getQualityPickerPositionRight(renderBox?.size.width ?? 0.0),
-      positionTop: configManager.getQualityPickerPositionTop(offset?.dy ?? 0.0),
-      onQualitySelected: (data) {
-        eventManager.handleQualitySelection(
-          data,
-          m3u8Quality,
-          onSelectQuality,
-          (quality) {
-            if (mounted) {
-              setState(() {
-                m3u8Quality = quality;
-              });
-            }
-          },
-        );
-        setState(() {
-          isQualityPickerVisible = false;
-        });
-        removeOverlay();
-      },
-      selectedQuality: m3u8Quality,
+    return Container(
+      key: videoQualityKey, // Use the GlobalKey here
+      child: VideoQualityPicker(
+        videoData: m3u8UrlList,
+        videoStyle: widget.videoStyle,
+        showPicker: isQualityPickerVisible,
+        positionRight: configManager.getQualityPickerPositionRight(renderBox?.size.width ?? 0.0),
+        positionTop: configManager.getQualityPickerPositionTop(offset?.dy ?? 0.0),
+        onQualitySelected: (data) {
+          eventManager.handleQualitySelection(
+            data,
+            m3u8Quality,
+            onSelectQuality,
+            (quality) {
+              if (mounted) {
+                setState(() {
+                  m3u8Quality = quality;
+                });
+              }
+            },
+          );
+          setState(() {
+            isQualityPickerVisible = false;
+          });
+          removeOverlay();
+        },
+        selectedQuality: m3u8Quality,
+      ),
     );
   }
 
@@ -780,7 +788,10 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
         if (mounted) {
           setState(() {
             widget.onShowMenu?.call(showMenu, isQualityPickerVisible);
-            removeOverlay();
+            // Also hide quality picker when controls are hidden
+            if (isQualityPickerVisible) {
+              removeOverlay();
+            }
           });
         }
       },
@@ -908,7 +919,21 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   }
 
   void showOverlay() {
+    // Prevent showing overlay if already visible
+    if (isQualityPickerVisible) {
+      return;
+    }
+
+    setState(() {
+      isQualityPickerVisible = true;
+    });
+
     uiStateManager.showOverlay(context, m3u8List());
+  }
+
+  /// Public method to show the quality picker overlay
+  void showQualityPicker() {
+    showOverlay();
   }
 
   void setPlaybackSpeed(double speed, {bool notify = true}) {
@@ -1008,7 +1033,15 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin, Widg
   }
 
   void removeOverlay() {
+    setState(() {
+      isQualityPickerVisible = false;
+    });
     uiStateManager.removeOverlay();
+  }
+
+  /// Public method to hide the quality picker overlay
+  void hideQualityPicker() {
+    removeOverlay();
   }
 
   void seekToLastPlayingPosition() {

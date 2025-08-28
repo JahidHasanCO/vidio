@@ -66,10 +66,20 @@ class VideoPlayerStateManager {
   }
 
   void showOverlay(BuildContext context, Widget overlayWidget) {
+    // Remove existing overlay first to prevent duplicates
+    removeOverlay();
+
+    // Ensure we have a fresh GlobalKey to prevent conflicts
+    videoQualityKey = GlobalKey();
+
     overlayEntry = OverlayEntry(
       builder: (_) => overlayWidget,
     );
-    Overlay.of(context).insert(overlayEntry!);
+
+    // Only insert if context is still valid
+    if (context.mounted) {
+      Overlay.of(context).insert(overlayEntry!);
+    }
   }
 
   void removeOverlay() {
