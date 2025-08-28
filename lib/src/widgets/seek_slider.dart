@@ -108,7 +108,7 @@ class _SeekSliderState extends State<SeekSlider> {
             right: 0,
             child: CachingProgressWidget(
               progress: widget.cachingProgress!.progress,
-              showLogs: false,
+              showLogs: false, // Don't show logs in progress bar overlay
               logs: widget.cachingProgress!.logs,
               progressColor: Colors.blue.withOpacity(0.8),
               backgroundColor: Colors.grey.withOpacity(0.3),

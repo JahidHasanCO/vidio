@@ -583,6 +583,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         // Handle caching for non-HLS formats
         if (widget.allowCacheFile) {
           final extension = detectedFormat.toLowerCase();
+          print('DEBUG: Starting caching for format: $detectedFormat, URL: $url');
+          // Start caching immediately and also start background caching
           _startCaching(url, quality: extension);
         }
       }
@@ -678,6 +680,17 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       operationName: 'manageWakelock',
     );
 
+    // Start background caching when video starts playing (YouTube-style)
+    if (controller != null &&
+        controller!.value.isPlaying &&
+        widget.allowCacheFile &&
+        _cachingProgress == null) {
+      final currentUrl = controller!.dataSource;
+      if (currentUrl.isNotEmpty) {
+        _startBackgroundCaching(currentUrl);
+      }
+    }
+
     if (mounted) {
       setState(() {});
     }
@@ -736,8 +749,8 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       } else {
         setState(() => hasInitError = false);
         seekToLastPlayingPosition();
-        // Clear caching progress when video is ready
-        _clearCachingProgress();
+        // Don't clear caching progress - let it continue in background
+        // _clearCachingProgress();
       }
     }).catchError((dynamic error, StackTrace? stackTrace) {
       errorHandler.handleInitializationError(error, stackTrace, 'Video initialization failed');
@@ -901,10 +914,13 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   void _updateCachingProgress(double progress, [String? log]) {
     if (!widget.allowCacheFile) return;
 
-    if (log != null) {
+    print('DEBUG: Updating cache progress: ${(progress * 100).toInt()}%, log: $log');
+
+    // Only add logs if they're meaningful (not just progress updates)
+    if (log != null && !log.contains('Cache progress:')) {
       _cacheLogs.add(log);
-      // Keep only last 5 logs to avoid memory issues
-      if (_cacheLogs.length > 5) {
+      // Keep only last 3 logs to avoid memory issues
+      if (_cacheLogs.length > 3) {
         _cacheLogs.removeAt(0);
       }
     }
@@ -913,48 +929,115 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
       _cachingProgress = CachingProgressData(
         progress: progress,
         logs: List.from(_cacheLogs),
-        isVisible: progress < 1.0, // Hide when complete
+        isVisible: progress < 1.0 && progress > 0.0, // Show when actively caching
       );
-      _isCachingInProgress = progress < 1.0;
+      _isCachingInProgress = progress < 1.0 && progress > 0.0;
     });
   }
 
   /// Starts caching with progress tracking
   void _startCaching(String url, {String? quality}) {
-    if (!widget.allowCacheFile) return;
+    if (!widget.allowCacheFile) {
+      print('DEBUG: Caching disabled - allowCacheFile is false');
+      return;
+    }
 
+    print('DEBUG: Starting caching for URL: $url with quality: $quality');
     _cacheLogs.clear();
-    _updateCachingProgress(0.0, 'Starting cache for video...');
+    _updateCachingProgress(0.0, 'Starting background cache...');
 
     VideoCacheManager().cacheVideoFile(
       url,
       quality: quality,
       headers: widget.headers,
       onProgress: (double progress) {
+        print('DEBUG: Cache progress update: ${(progress * 100).toInt()}%');
         _updateCachingProgress(progress);
       },
       onLog: (String log) {
-        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, log);
+        print('DEBUG: Cache log: $log');
+        // Only log important events, not every progress update
+        if (!log.contains('Cache progress:') &&
+            !log.contains('Background cache progress:')) {
+          _updateCachingProgress(_cachingProgress?.progress ?? 0.0, log);
+        }
       },
       onComplete: (File? file) {
+        print('DEBUG: Cache completed: ${file?.path}');
         if (file != null) {
-          _updateCachingProgress(1.0, 'Cache completed successfully');
+          _updateCachingProgress(1.0, 'Cache completed');
           widget.onCacheFileCompleted?.call([file]);
+          // Keep progress visible briefly then hide
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              _updateCachingProgress(0.0); // Hide progress
+            }
+          });
         }
       },
       onError: (dynamic error) {
-        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, 'Cache failed: $error');
+        print('DEBUG: Cache error: $error');
+        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, 'Cache failed');
         widget.onCacheFileFailed?.call(error);
+        // Hide progress after error
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            _updateCachingProgress(0.0);
+          }
+        });
       },
     );
   }
 
-  /// Clears caching progress
-  void _clearCachingProgress() {
-    setState(() {
-      _cachingProgress = null;
-      _isCachingInProgress = false;
-      _cacheLogs.clear();
-    });
+  /// Starts background caching during video playback (YouTube-style)
+  void _startBackgroundCaching(String url) {
+    if (!widget.allowCacheFile) return;
+
+    _cacheLogs.clear();
+    _updateCachingProgress(0.0, 'Buffering ahead...');
+
+    VideoCacheManager().cacheVideoFile(
+      url,
+      headers: widget.headers,
+      onProgress: (double progress) {
+        _updateCachingProgress(progress);
+      },
+      onLog: (String log) {
+        // Only log important events during background caching
+        if (log.contains('Cache completed') ||
+            log.contains('Cache failed') ||
+            log.contains('Starting background')) {
+          _updateCachingProgress(_cachingProgress?.progress ?? 0.0, log);
+        }
+      },
+      onComplete: (File? file) {
+        if (file != null) {
+          _updateCachingProgress(1.0, 'Buffered successfully');
+          widget.onCacheFileCompleted?.call([file]);
+          // Hide progress after a short delay
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              setState(() {
+                _cachingProgress = null;
+                _isCachingInProgress = false;
+              });
+            }
+          });
+        }
+      },
+      onError: (dynamic error) {
+        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, 'Buffering failed');
+        widget.onCacheFileFailed?.call(error);
+        // Hide progress after error
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _cachingProgress = null;
+              _isCachingInProgress = false;
+            });
+          }
+        });
+      },
+    );
   }
 }

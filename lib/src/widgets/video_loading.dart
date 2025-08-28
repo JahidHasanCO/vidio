@@ -54,7 +54,7 @@ class VideoLoading extends StatelessWidget {
                     width: 200,
                     child: CachingProgressWidget(
                       progress: cachingProgress!.progress,
-                      showLogs: true,
+                      showLogs: false, // Don't show logs as requested
                       logs: cachingProgress!.logs,
                       progressColor: Colors.blue,
                       backgroundColor: Colors.grey,

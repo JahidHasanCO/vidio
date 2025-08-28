@@ -32,12 +32,16 @@ class CachingProgressWidget extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Progress bar
+        // Progress bar with better visibility
         Container(
           height: height,
           decoration: BoxDecoration(
-            color: backgroundColor.withOpacity(0.3),
+            color: backgroundColor.withOpacity(0.5),
             borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(
+              color: progressColor.withOpacity(0.3),
+              width: 1.0,
+            ),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(borderRadius),
@@ -58,12 +62,19 @@ class CachingProgressWidget extends StatelessWidget {
                 TextStyle(
                   color: textColor,
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
+                  shadows: const [
+                    Shadow(
+                      color: Colors.black,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
           ),
         ],
 
-        // Logs
+        // Logs (only if explicitly enabled)
         if (showLogs && logs.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(

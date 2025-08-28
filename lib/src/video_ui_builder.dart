@@ -234,7 +234,7 @@ class VideoUIBuilder {
     CachingProgressData? cachingProgress,
   }) {
     return Visibility(
-      visible: !showMenu && showMiniProgress,
+      visible: showMiniProgress,
       child: Center(
         child: AspectRatio(
           aspectRatio: 16 / 9,
@@ -261,7 +261,7 @@ class VideoUIBuilder {
                         ),
                       )
                     : const SizedBox.shrink(),
-              // Add caching progress overlay
+              // Add caching progress overlay - always show when caching is active
               if (cachingProgress != null && cachingProgress.isVisible)
                 CachingProgressOverlay(
                   cachingProgress: cachingProgress,
