@@ -116,6 +116,9 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
   CachingProgressData? _cachingProgress;
   bool _isCachingInProgress = false;
   final List<String> _cacheLogs = [];
+  String? _currentVideoUrl;
+  int _currentVideoDurationMs = 0;
+  final List<CachedRange> _cachedRanges = [];
 
   // Manager instances
   late VideoControllerManager videoControllerManager;
@@ -526,6 +529,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         }
       },
       cachingProgress: _cachingProgress,
+      cachedRanges: getCachedRanges(),
     );
   }
 
@@ -687,7 +691,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         _cachingProgress == null) {
       final currentUrl = controller!.dataSource;
       if (currentUrl.isNotEmpty) {
-        _startBackgroundCaching(currentUrl);
+        _startContinuousCaching(currentUrl);
       }
     }
 
@@ -943,6 +947,7 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
     }
 
     print('DEBUG: Starting caching for URL: $url with quality: $quality');
+    _currentVideoUrl = url;
     _cacheLogs.clear();
     _updateCachingProgress(0.0, 'Starting background cache...');
 
@@ -987,6 +992,213 @@ class _VidioState extends State<Vidio> with SingleTickerProviderStateMixin {
         });
       },
     );
+  }
+
+  /// Starts YouTube-style continuous caching during playback
+  void _startContinuousCaching(String url) {
+    if (!widget.allowCacheFile || controller == null) return;
+
+    print('DEBUG: Starting continuous caching for: $url');
+    _currentVideoUrl = url;
+    _cacheLogs.clear();
+
+    // Get current playback position for smart caching ahead
+    final currentPosition = controller!.value.position.inMilliseconds;
+    final totalDuration = controller!.value.duration.inMilliseconds;
+
+    if (totalDuration == 0) return;
+
+    _currentVideoDurationMs = totalDuration;
+
+    // Start caching from current position + buffer ahead
+    final startByte = _calculateCacheStartByte(currentPosition, totalDuration);
+    final endByte = _calculateCacheEndByte(currentPosition, totalDuration);
+
+    print('DEBUG: Continuous cache range: $startByte - $endByte bytes');
+
+    VideoCacheManager().cacheVideoFilePartial(
+      url,
+      startByte: startByte,
+      endByte: endByte,
+      headers: widget.headers,
+      onProgress: (double progress) {
+        _updateCachingProgress(progress);
+      },
+      onRangeCached: (int start, int end) {
+        print('DEBUG: Range cached: $start - $end');
+        _addCachedRange(start, end);
+        _updateCachingProgress(_cachingProgress?.progress ?? 0.0);
+      },
+      onLog: (String log) {
+        if (log.contains('Cache completed') ||
+            log.contains('Cache failed') ||
+            log.contains('Starting')) {
+          _updateCachingProgress(_cachingProgress?.progress ?? 0.0, log);
+        }
+      },
+      onComplete: (File? file) {
+        if (file != null) {
+          print('DEBUG: Continuous cache segment completed');
+          _updateCachingProgress(1.0, 'Buffered ahead');
+          widget.onCacheFileCompleted?.call([file]);
+
+          // Continue caching next segment if video is still playing
+          if (controller != null && controller!.value.isPlaying) {
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted && controller != null && controller!.value.isPlaying) {
+                _continueContinuousCaching();
+              }
+            });
+          }
+        }
+      },
+      onError: (dynamic error) {
+        print('DEBUG: Continuous cache error: $error');
+        _updateCachingProgress(_cachingProgress?.progress ?? 0.0, 'Buffering failed');
+        widget.onCacheFileFailed?.call(error);
+      },
+    );
+  }
+
+  /// Continues continuous caching with next segment
+  void _continueContinuousCaching() {
+    if (!widget.allowCacheFile || controller == null || _currentVideoUrl == null) return;
+
+    final currentPosition = controller!.value.position.inMilliseconds;
+    final totalDuration = _currentVideoDurationMs;
+
+    if (totalDuration == 0) return;
+
+    // Check if we need to cache further ahead
+    final cacheAheadMs = 30000; // 30 seconds ahead
+    final nextSegmentStart = currentPosition + cacheAheadMs;
+
+    if (nextSegmentStart >= totalDuration) {
+      print('DEBUG: Reached end of video, stopping continuous cache');
+      return;
+    }
+
+    final startByte = _calculateCacheStartByte(nextSegmentStart, totalDuration);
+    final endByte = _calculateCacheEndByte(nextSegmentStart, totalDuration);
+
+    // Check if this range is already cached
+    if (_isRangeCached(startByte, endByte)) {
+      print('DEBUG: Range already cached, skipping: $startByte - $endByte');
+      return;
+    }
+
+    print('DEBUG: Continuing continuous cache: $startByte - $endByte');
+
+    VideoCacheManager().cacheVideoFilePartial(
+      _currentVideoUrl!,
+      startByte: startByte,
+      endByte: endByte,
+      headers: widget.headers,
+      onProgress: (double progress) {
+        _updateCachingProgress(progress);
+      },
+      onRangeCached: (int start, int end) {
+        _addCachedRange(start, end);
+        _updateCachingProgress(_cachingProgress?.progress ?? 0.0);
+      },
+      onComplete: (File? file) {
+        if (file != null && controller != null && controller!.value.isPlaying) {
+          // Continue with next segment after a short delay
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted && controller != null && controller!.value.isPlaying) {
+              _continueContinuousCaching();
+            }
+          });
+        }
+      },
+      onError: (dynamic error) {
+        print('DEBUG: Continue cache error: $error');
+      },
+    );
+  }
+
+  /// Calculates start byte for caching based on playback position
+  int _calculateCacheStartByte(int currentPositionMs, int totalDurationMs) {
+    // Start caching from current position + 10 seconds buffer
+    final bufferMs = 10000;
+    final startMs = (currentPositionMs + bufferMs).clamp(0, totalDurationMs);
+
+    // Estimate byte position (rough approximation)
+    final progressRatio = startMs / totalDurationMs;
+    return (progressRatio * _estimateFileSize()).toInt();
+  }
+
+  /// Calculates end byte for caching
+  int _calculateCacheEndByte(int currentPositionMs, int totalDurationMs) {
+    // Cache 30 seconds ahead
+    final cacheAheadMs = 30000;
+    final endMs = (currentPositionMs + cacheAheadMs).clamp(0, totalDurationMs);
+
+    final progressRatio = endMs / totalDurationMs;
+    return (progressRatio * _estimateFileSize()).toInt();
+  }
+
+  /// Estimates file size based on duration and bitrate
+  int _estimateFileSize() {
+    // Rough estimation: assume 1MB per minute of video
+    const bytesPerMinute = 1000000;
+    final durationMinutes = _currentVideoDurationMs / 60000;
+    return (durationMinutes * bytesPerMinute).toInt();
+  }
+
+  /// Adds a cached range to the list
+  void _addCachedRange(int startByte, int endByte) {
+    final newRange = CachedRange(
+      startByte: startByte,
+      endByte: endByte,
+      cachedAt: DateTime.now(),
+    );
+    _cachedRanges.add(newRange);
+
+    // Merge overlapping ranges
+    _mergeCachedRanges();
+
+    print('DEBUG: Added cached range: $startByte - $endByte, total ranges: ${_cachedRanges.length}');
+  }
+
+  /// Merges overlapping cached ranges
+  void _mergeCachedRanges() {
+    if (_cachedRanges.length < 2) return;
+
+    _cachedRanges.sort((a, b) => a.startByte.compareTo(b.startByte));
+
+    final merged = <CachedRange>[];
+    var current = _cachedRanges[0];
+
+    for (var i = 1; i < _cachedRanges.length; i++) {
+      final next = _cachedRanges[i];
+      if (current.endByte >= next.startByte) {
+        // Merge overlapping ranges
+        current = CachedRange(
+          startByte: current.startByte,
+          endByte: current.endByte > next.endByte ? current.endByte : next.endByte,
+          cachedAt: DateTime.now(),
+        );
+      } else {
+        merged.add(current);
+        current = next;
+      }
+    }
+    merged.add(current);
+
+    _cachedRanges.clear();
+    _cachedRanges.addAll(merged);
+  }
+
+  /// Checks if a byte range is already cached
+  bool _isRangeCached(int startByte, int endByte) {
+    return _cachedRanges.any((range) =>
+        range.startByte <= startByte && range.endByte >= endByte);
+  }
+
+  /// Gets cached ranges as a list of progress values (0.0 to 1.0)
+  List<CachedRange> getCachedRanges() {
+    return List.from(_cachedRanges);
   }
 
   /// Starts background caching during video playback (YouTube-style)

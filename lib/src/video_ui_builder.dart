@@ -11,6 +11,7 @@ import 'package:vidio/src/widgets/player_bottom_bar.dart';
 import 'package:vidio/src/widgets/unlock_button.dart';
 import 'package:vidio/src/widgets/video_loading.dart';
 import 'package:vidio/src/widgets/video_quality_picker.dart';
+import 'package:vidio/src/video_cache_manager.dart';
 
 import 'widgets/ambient_mode_settings.dart';
 import 'widgets/caching_progress_widget.dart';
@@ -197,6 +198,7 @@ class VideoUIBuilder {
     required void Function()? onFullScreenIconTap,
     required void Function()? onPIPIconTap,
     CachingProgressData? cachingProgress,
+    List<CachedRange>? cachedRanges,
   }) {
     if (controller == null) {
       return const SizedBox.shrink();
@@ -220,6 +222,7 @@ class VideoUIBuilder {
           hidePipButton: hidePIPButton ?? true,
           onPipMode: onPIPIconTap,
           cachingProgress: cachingProgress,
+          cachedRanges: cachedRanges,
         ),
       ),
     );

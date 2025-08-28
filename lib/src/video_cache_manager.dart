@@ -40,7 +40,7 @@ class VideoCacheManager {
     return null;
   }
 
-  /// Cache video file with smart strategy
+  /// Cache video file with smart strategy and partial caching support
   Future<File?> cacheVideoFile(
     String url, {
     String? quality,
@@ -50,6 +50,8 @@ class VideoCacheManager {
     void Function(File? file)? onComplete,
     void Function(dynamic error)? onError,
     bool cacheInBackground = true,
+    int? startByte, // For partial caching
+    int? endByte,   // For partial caching
   }) async {
     final cacheKey = _generateCacheKey(url, quality);
     onLog?.call('Starting cache for: $url');
@@ -83,6 +85,8 @@ class VideoCacheManager {
           onProgress?.call(progress);
           onLog?.call('Cache progress: ${(progress * 100).toInt()}%');
         },
+        startByte: startByte,
+        endByte: endByte,
       );
 
       if (file != null) {
@@ -109,6 +113,113 @@ class VideoCacheManager {
     }
 
     return completer.future;
+  }
+
+  /// Cache partial video file with range tracking (YouTube-style)
+  Future<File?> cacheVideoFilePartial(
+    String url, {
+    required int startByte,
+    required int endByte,
+    String? quality,
+    Map<String, String>? headers,
+    void Function(double progress)? onProgress,
+    void Function(int start, int end)? onRangeCached,
+    void Function(String log)? onLog,
+    void Function(File? file)? onComplete,
+    void Function(dynamic error)? onError,
+  }) async {
+    final cacheKey = _generateCacheKey(url, quality);
+    onLog?.call('Starting partial cache for: $url ($startByte-$endByte)');
+
+    try {
+      // Check if this range is already cached
+      final existingRanges = await getCachedRanges(url, quality, endByte - startByte + 1);
+      final isRangeCached = existingRanges.any((range) =>
+          range.startByte <= startByte && range.endByte >= endByte);
+
+      if (isRangeCached) {
+        onLog?.call('Range already cached: $startByte-$endByte');
+        onProgress?.call(1.0);
+        onRangeCached?.call(startByte, endByte);
+        onComplete?.call(null); // No new file created
+        return null;
+      }
+
+      final file = await _downloadAndCacheFile(
+        url: url,
+        quality: quality,
+        headers: headers,
+        onProgress: onProgress,
+        startByte: startByte,
+        endByte: endByte,
+      );
+
+      if (file != null) {
+        // Update cache entry with new range
+        final entry = _cacheEntries[cacheKey];
+        if (entry != null) {
+          final newRange = CachedRange(
+            startByte: startByte,
+            endByte: endByte,
+            cachedAt: DateTime.now(),
+          );
+          entry.cachedRanges.add(newRange);
+          // Merge overlapping ranges
+          _mergeRanges(entry.cachedRanges);
+        } else {
+          // Create new entry
+          _cacheEntries[cacheKey] = _CacheEntry(
+            url: url,
+            quality: quality,
+            file: file,
+            lastAccessed: DateTime.now(),
+            cachedRanges: [CachedRange(
+              startByte: startByte,
+              endByte: endByte,
+              cachedAt: DateTime.now(),
+            )],
+          );
+        }
+
+        onLog?.call('Partial cache completed: $startByte-$endByte');
+        onRangeCached?.call(startByte, endByte);
+        onComplete?.call(file);
+        return file;
+      } else {
+        onLog?.call('Partial cache failed: $startByte-$endByte');
+        onError?.call('Failed to cache partial file');
+        return null;
+      }
+    } catch (error) {
+      onLog?.call('Partial cache error: $error');
+      onError?.call(error);
+      return null;
+    }
+  }
+
+  /// Merge overlapping ranges in a list
+  void _mergeRanges(List<CachedRange> ranges) {
+    if (ranges.length < 2) return;
+
+    ranges.sort((a, b) => a.startByte.compareTo(b.startByte));
+
+    final merged = <CachedRange>[];
+    var current = ranges[0];
+
+    for (var i = 1; i < ranges.length; i++) {
+      final next = ranges[i];
+      final mergedRange = current.merge(next);
+      if (mergedRange != null) {
+        current = mergedRange;
+      } else {
+        merged.add(current);
+        current = next;
+      }
+    }
+    merged.add(current);
+
+    ranges.clear();
+    ranges.addAll(merged);
   }
 
   /// Get optimal video source (cached or network)
@@ -255,6 +366,32 @@ class VideoCacheManager {
     );
   }
 
+  /// Get cached ranges for a video (as percentage of total duration)
+  Future<List<CachedRange>> getCachedRanges(String url, String? quality, int totalBytes) async {
+    final cacheKey = _generateCacheKey(url, quality);
+    final entry = _cacheEntries[cacheKey];
+
+    if (entry != null && entry.cachedRanges.isNotEmpty) {
+      return entry.cachedRanges;
+    }
+
+    // Check if file exists and get its size
+    final file = await _findExistingCacheFile(url, quality);
+    if (file != null && file.existsSync()) {
+      final fileSize = file.lengthSync();
+      if (fileSize > 0 && totalBytes > 0) {
+        final range = CachedRange(
+          startByte: 0,
+          endByte: fileSize - 1,
+          cachedAt: file.lastModifiedSync(),
+        );
+        return [range];
+      }
+    }
+
+    return [];
+  }
+
   /// Generate cache key for URL and quality
   String _generateCacheKey(String url, String? quality) {
     final qualitySuffix = quality != null ? '_$quality' : '';
@@ -279,12 +416,14 @@ class VideoCacheManager {
     return null;
   }
 
-  /// Download and cache file
+  /// Download and cache file with partial caching support
   Future<File?> _downloadAndCacheFile({
     required String url,
     String? quality,
     Map<String, String>? headers,
     void Function(double progress)? onProgress,
+    int? startByte, // For partial caching
+    int? endByte,   // For partial caching
   }) async {
     final client = http.Client();
     final request = http.Request('GET', Uri.parse(url));
@@ -293,8 +432,15 @@ class VideoCacheManager {
       request.headers.addAll(headers);
     }
 
+    // Add range header for partial caching
+    if (startByte != null && endByte != null) {
+      request.headers['Range'] = 'bytes=$startByte-$endByte';
+    } else if (startByte != null) {
+      request.headers['Range'] = 'bytes=$startByte-';
+    }
+
     final response = await client.send(request);
-    if (response.statusCode != 200) {
+    if (response.statusCode != 200 && response.statusCode != 206) {
       throw Exception('Failed to download file: ${response.statusCode}');
     }
 
@@ -359,13 +505,48 @@ class _CacheEntry {
   final String? quality;
   final File file;
   DateTime lastAccessed;
+  final List<CachedRange> cachedRanges;
 
   _CacheEntry({
     required this.url,
     required this.quality,
     required this.file,
     required this.lastAccessed,
+    this.cachedRanges = const [],
   });
+}
+
+/// Represents a cached portion of a video file
+class CachedRange {
+  final int startByte;
+  final int endByte;
+  final DateTime cachedAt;
+
+  const CachedRange({
+    required this.startByte,
+    required this.endByte,
+    required this.cachedAt,
+  });
+
+  /// Get the size of this cached range in bytes
+  int get size => endByte - startByte + 1;
+
+  /// Check if a position (in bytes) is within this range
+  bool contains(int position) {
+    return position >= startByte && position <= endByte;
+  }
+
+  /// Merge this range with another if they overlap or are adjacent
+  CachedRange? merge(CachedRange other) {
+    if (endByte + 1 >= other.startByte && startByte <= other.endByte + 1) {
+      return CachedRange(
+        startByte: startByte < other.startByte ? startByte : other.startByte,
+        endByte: endByte > other.endByte ? endByte : other.endByte,
+        cachedAt: DateTime.now(),
+      );
+    }
+    return null;
+  }
 }
 
 /// Cache statistics

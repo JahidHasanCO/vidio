@@ -3,6 +3,7 @@ import 'package:video_player/video_player.dart';
 import 'package:vidio/src/widgets/bordered_thumb_shape.dart';
 import 'package:vidio/src/widgets/uniform_rounded_track_shape.dart';
 import 'package:vidio/src/widgets/caching_progress_widget.dart';
+import 'package:vidio/src/video_cache_manager.dart';
 
 class SeekSlider extends StatefulWidget {
   const SeekSlider({
@@ -10,10 +11,12 @@ class SeekSlider extends StatefulWidget {
     super.key,
     this.colors,
     this.cachingProgress,
+    this.cachedRanges,
   });
   final VideoPlayerController controller;
   final VideoProgressColors? colors;
   final CachingProgressData? cachingProgress;
+  final List<CachedRange>? cachedRanges;
 
   @override
   State<SeekSlider> createState() => _SeekSliderState();
@@ -58,6 +61,10 @@ class _SeekSliderState extends State<SeekSlider> {
     return Stack(
       alignment: Alignment.center,
       children: [
+        // Cached ranges background
+        if (widget.cachedRanges != null && widget.cachedRanges!.isNotEmpty)
+          _buildCachedRangesOverlay(duration),
+
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             trackHeight: 10,
@@ -131,6 +138,62 @@ class _SeekSliderState extends State<SeekSlider> {
           ),
       ],
     );
+  }
+
+  /// Builds overlay showing cached ranges as segments
+  Widget _buildCachedRangesOverlay(double totalDuration) {
+    if (widget.cachedRanges == null || widget.cachedRanges!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final height = 10.0; // Match slider track height
+
+          return Stack(
+            children: widget.cachedRanges!.map((range) {
+              // Convert byte ranges to time-based progress
+              final startProgress = _byteToProgress(range.startByte, totalDuration);
+              final endProgress = _byteToProgress(range.endByte, totalDuration);
+
+              final left = startProgress * width;
+              final rangeWidth = (endProgress - startProgress) * width;
+
+              return Positioned(
+                left: left,
+                top: 0,
+                width: rangeWidth,
+                height: height,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.4), // Light blue for cached portions
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: Colors.blue.withOpacity(0.6),
+                      width: 1,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Converts byte position to progress (0.0 to 1.0) based on estimated file size
+  double _byteToProgress(int bytePosition, double totalDurationMs) {
+    // Rough estimation: assume linear relationship between bytes and time
+    // This is a simplification - in reality, bitrate may vary
+    const estimatedBytesPerSecond = 500000; // 500KB/s average
+    final estimatedTotalBytes = (totalDurationMs / 1000) * estimatedBytesPerSecond;
+
+    if (estimatedTotalBytes <= 0) return 0.0;
+
+    return (bytePosition / estimatedTotalBytes).clamp(0.0, 1.0);
   }
 
   String _formatDuration(Duration duration) {

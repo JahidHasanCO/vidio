@@ -6,6 +6,7 @@ import 'package:vidio/src/widgets/play_pause_icon.dart';
 import 'package:vidio/src/widgets/seek_button.dart';
 import 'package:vidio/src/widgets/seek_slider.dart';
 import 'package:vidio/src/widgets/caching_progress_widget.dart';
+import 'package:vidio/src/video_cache_manager.dart';
 import 'package:vidio/vidio.dart';
 
 class PlayerBottomBar extends StatefulWidget {
@@ -26,6 +27,7 @@ class PlayerBottomBar extends StatefulWidget {
     this.onFullScreen,
     this.hideFullScreenButton,
     this.cachingProgress,
+    this.cachedRanges,
   });
   final VideoPlayerController controller;
   final VoidCallback? onFullScreenIconTap;
@@ -42,6 +44,7 @@ class PlayerBottomBar extends StatefulWidget {
   final ValueChanged<VideoPlayerValue>? onRewind;
   final ValueChanged<VideoPlayerValue>? onFastForward;
   final CachingProgressData? cachingProgress;
+  final List<CachedRange>? cachedRanges;
 
   @override
   State<PlayerBottomBar> createState() => _PlayerBottomBarState();
@@ -167,6 +170,7 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                             controller: widget.controller,
                             colors: widget.videoStyle.progressIndicatorColors,
                             cachingProgress: widget.cachingProgress,
+                            cachedRanges: widget.cachedRanges,
                           ),
                         ),
                         Padding(
