@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:vidio/src/model/model.dart';
 
@@ -47,11 +48,19 @@ class CachedProgressTrackShape extends RoundedRectSliderTrackShape {
 
     // Paint cached ranges as white segments
     if (cachedRanges != null && cachedRanges!.isNotEmpty && totalDuration > 0) {
+      if (kDebugMode) {
+        print('DEBUG: CachedProgressTrackShape painting ${cachedRanges!.length} ranges');
+      }
       final cachedPaint = Paint()..color = Colors.white.withOpacity(0.9);
 
       for (final range in cachedRanges!) {
         final startProgress = _byteToProgress(range.startByte, totalDuration);
         final endProgress = _byteToProgress(range.endByte, totalDuration);
+
+        if (kDebugMode) {
+          print('DEBUG: Painting range ${range.startByte}-${range.endByte} '
+              'as progress $startProgress to $endProgress');
+        }
 
         final startX = trackRect.left + (startProgress * trackRect.width);
         final endX = trackRect.left + (endProgress * trackRect.width);
@@ -89,12 +98,19 @@ class CachedProgressTrackShape extends RoundedRectSliderTrackShape {
   double _byteToProgress(int bytePosition, double totalDurationMs) {
     if (totalDurationMs <= 0) return 0;
 
-    // Estimate bytes per millisecond based on current cached ranges
+    // Use the estimated total bytes from cached ranges or fallback estimation
     final estimatedTotalBytes = _estimateTotalBytes(totalDurationMs);
 
     if (estimatedTotalBytes <= 0) return 0;
 
-    return (bytePosition / estimatedTotalBytes).clamp(0.0, 1.0);
+    // Clamp the result to ensure it's within valid range
+    final progress = (bytePosition / estimatedTotalBytes).clamp(0.0, 1.0);
+
+    if (kDebugMode && progress > 0) {
+      print('DEBUG: Byte $bytePosition -> Progress $progress (total bytes: $estimatedTotalBytes)');
+    }
+
+    return progress;
   }
 
   /// Estimates total bytes based on cached ranges and duration
@@ -105,15 +121,29 @@ class CachedProgressTrackShape extends RoundedRectSliderTrackShape {
       return ((totalDurationMs / 60000) * bytesPerMinute).toInt();
     }
 
-    // Use the highest byte position from cached ranges as estimation
+    // Find the maximum byte position from all cached ranges
     var maxByte = 0;
+    var totalCachedBytes = 0;
+
     for (final range in cachedRanges!) {
       if (range.endByte > maxByte) {
         maxByte = range.endByte;
       }
+      totalCachedBytes += range.size;
     }
 
-    // Assume the file is at least 20% larger than the highest cached byte
-    return (maxByte * 1.2).toInt();
+    // If we have significant cached data, use it to estimate total file size
+    if (totalCachedBytes > 1000000) { // More than 1MB cached
+      // Assume the file is 2-3x larger than what's been cached so far
+      final estimatedTotal = (maxByte * 2.5).toInt();
+      if (kDebugMode) {
+        print('DEBUG: Estimated total bytes from cache: $estimatedTotal (max byte: $maxByte)');
+      }
+      return estimatedTotal;
+    }
+
+    // Fallback to duration-based estimation
+    const bytesPerMinute = 50000000; // 50MB per minute
+    return ((totalDurationMs / 60000) * bytesPerMinute).toInt();
   }
 }

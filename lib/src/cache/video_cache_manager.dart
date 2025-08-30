@@ -354,6 +354,31 @@ class VideoCacheManager {
     }
   }
 
+  /// Clear cache entries for a specific URL
+  Future<void> clearCacheForUrl(String url, {String? quality}) async {
+    final cacheKey = _generateCacheKey(url, quality);
+    _cacheEntries.remove(cacheKey);
+
+    // Also delete the actual cache files
+    final directory = await _getCacheDirectory();
+    if (directory == null) return;
+
+    final files = directory.listSync().whereType<File>();
+    for (final file in files) {
+      final fileName = p.basenameWithoutExtension(file.path);
+      if (fileName.contains(cacheKey)) {
+        try {
+          await file.delete();
+          if (kDebugMode) {
+            print('DEBUG: Deleted cache file for URL: $url');
+          }
+        } catch (e) {
+          debugPrint('Failed to delete cache file: $e');
+        }
+      }
+    }
+  }
+
   /// Get cache statistics
   Future<CacheStats> getCacheStats() async {
     final directory = await _getCacheDirectory();
@@ -445,6 +470,7 @@ class VideoCacheManager {
     final client = http.Client();
     final request = http.Request('GET', Uri.parse(url));
 
+    // Add custom headers if provided
     if (headers != null) {
       request.headers.addAll(headers);
     }
@@ -456,20 +482,83 @@ class VideoCacheManager {
       request.headers['Range'] = 'bytes=$startByte-';
     }
 
+    if (kDebugMode) {
+      print('DEBUG: Making HTTP request to: $url');
+      print('DEBUG: Request headers: ${request.headers}');
+      print('DEBUG: Range: $startByte-$endByte');
+    }
+
     final response = await client.send(request);
+
+    if (kDebugMode) {
+      print('DEBUG: Response status: ${response.statusCode}');
+      print('DEBUG: Response headers: ${response.headers}');
+    }
+
     if (response.statusCode != 200 && response.statusCode != 206) {
-      throw Exception('Failed to download file: ${response.statusCode}');
+      // Provide more detailed error messages for common status codes
+      String errorMessage;
+      switch (response.statusCode) {
+        case 403:
+          errorMessage = '403 Forbidden: Server refused access. This may be due to:\n'
+              '• Missing authentication headers\n'
+              '• Server blocking requests from this app\n'
+              '• CORS policy restrictions\n'
+              '• Anti-bot measures\n'
+              'Try adding custom headers or using a different video source.';
+          break;
+        case 404:
+          errorMessage = '404 Not Found: Video file not found at the specified URL.';
+          break;
+        case 401:
+          errorMessage = '401 Unauthorized: Authentication required for this video.';
+          break;
+        case 429:
+          errorMessage = '429 Too Many Requests: Rate limited. Try again later.';
+          break;
+        case 500:
+          errorMessage = '500 Internal Server Error: Server-side issue.';
+          break;
+        default:
+          errorMessage = 'HTTP ${response.statusCode}: ${response.reasonPhrase ?? "Unknown error"}';
+      }
+
+      if (kDebugMode) {
+        print('DEBUG: HTTP Error Details:');
+        print('DEBUG: URL: $url');
+        print('DEBUG: Status: ${response.statusCode}');
+        print('DEBUG: Headers sent: ${request.headers}');
+        print('DEBUG: Response headers: ${response.headers}');
+      }
+
+      client.close();
+      throw Exception('Failed to download file: $errorMessage');
     }
 
     final directory = await _getCacheDirectory();
     if (directory == null) {
+      client.close();
       throw Exception('Could not access cache directory');
     }
 
     final cacheKey = _generateCacheKey(url, quality);
     final extension = p.extension(url).isNotEmpty ? p.extension(url) : '.mp4';
-    final fileName = '$cacheKey$extension';
+
+    // For partial caching, use different file names for different ranges
+    final rangeSuffix = (startByte != null && endByte != null)
+        ? '_${startByte}_${endByte}'
+        : '';
+    final fileName = '$cacheKey$rangeSuffix$extension';
     final file = File('${directory.path}/$fileName');
+
+    // If this is a partial range and file already exists, skip download
+    if (startByte != null && endByte != null && file.existsSync()) {
+      if (kDebugMode) {
+        print('DEBUG: Partial range already cached: $startByte-$endByte');
+      }
+      client.close();
+      return file;
+    }
 
     final sink = file.openWrite();
     var downloaded = 0;
@@ -483,31 +572,37 @@ class VideoCacheManager {
     if (kDebugMode) {
       print(
         'DEBUG: Download starting - '
-        'Total bytes: $total, Range: $startByte-$endByte',
+        'Total bytes: $total, Range: $startByte-$endByte, File: $fileName',
       );
     }
 
-    await response.stream.forEach((chunk) {
-      sink.add(chunk);
-      downloaded += chunk.length;
-      if (total > 0 && onProgress != null) {
-        final progress = downloaded / total;
-        if (kDebugMode) {
-          print(
-            'DEBUG: Download progress: '
-            '${(progress * 100).toInt()}% ($downloaded/$total)',
-          );
+    try {
+      await response.stream.forEach((chunk) {
+        sink.add(chunk);
+        downloaded += chunk.length;
+        if (total > 0 && onProgress != null) {
+          final progress = downloaded / total;
+          if (kDebugMode) {
+            print(
+              'DEBUG: Download progress: '
+              '${(progress * 100).toInt()}% ($downloaded/$total)',
+            );
+          }
+          onProgress(progress);
         }
-        onProgress(progress);
-      }
-    });
+      });
+    } catch (e) {
+      await sink.close();
+      client.close();
+      rethrow;
+    }
 
     await sink.close();
     client.close();
 
     if (kDebugMode) {
       print('DEBUG: Download completed '
-          '- Total downloaded: $downloaded bytes');
+          '- Total downloaded: $downloaded bytes, File: $fileName');
     }
     return file;
   }

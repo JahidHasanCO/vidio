@@ -87,6 +87,10 @@ class VideoPlayerStateManager {
     }
   }
 
+  void resetGlobalKey() {
+    videoQualityKey = GlobalKey();
+  }
+
   void removeOverlay() {
     overlayEntry?.remove();
     overlayEntry = null;

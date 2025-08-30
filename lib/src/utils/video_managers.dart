@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
 import 'package:vidio/src/utils/utils.dart';
 import 'package:vidio/src/utils/video_initializer.dart';
@@ -34,7 +34,7 @@ class VideoControllerManager {
     double playbackSpeed,
     Duration? lastPlayedPos,
   ) async {
-    controller = VideoInitializer.createVideoController(
+    controller = await VideoInitializer.createVideoController(
       url: url,
       videoFormat: videoFormat,
       isOffline: isOffline ?? false,
@@ -45,6 +45,13 @@ class VideoControllerManager {
       onCacheFileCompleted: onCacheFileCompleted,
       onCacheFileFailed: onCacheFileFailed,
     );
+
+    if (controller == null) {
+      if (kDebugMode) {
+        print('DEBUG: Failed to create video controller for URL: $url');
+      }
+      return;
+    }
 
     await controller?.initialize();
     await controller?.setPlaybackSpeed(playbackSpeed);

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:vidio/src/model/model.dart';
@@ -50,11 +51,28 @@ class _SeekSliderState extends State<SeekSlider> {
   @override
   void didUpdateWidget(SeekSlider oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // Check if cached ranges actually changed (not just length)
+    final oldRangesKey = oldWidget.cachedRanges
+            ?.map((r) => '${r.startByte}-${r.endByte}')
+            .join(',') ??
+        '';
+    final newRangesKey = widget.cachedRanges
+            ?.map((r) => '${r.startByte}-${r.endByte}')
+            .join(',') ??
+        '';
+
     // Force rebuild when cached ranges change
-    if (oldWidget.cachedRanges?.length != widget.cachedRanges?.length) {
+    if (oldRangesKey != newRangesKey) {
       if (mounted) {
         setState(() {});
       }
+    }
+
+    // Debug: Log cached ranges
+    if (kDebugMode && widget.cachedRanges != null && widget.cachedRanges!.isNotEmpty) {
+      print('DEBUG: SeekSlider received cached ranges: '
+          '${widget.cachedRanges!.map((r) => '${r.startByte}-${r.endByte}').join(', ')}');
     }
   }
 

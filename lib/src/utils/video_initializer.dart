@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
+import 'package:vidio/src/cache/video_cache_manager.dart';
 import 'package:vidio/src/utils/package_utils/file_utils.dart';
 
 /// Utility class for video controller initialization and setup
@@ -9,7 +10,7 @@ class VideoInitializer {
   VideoInitializer._();
 
   /// Creates a video controller based on video format and source
-  static VideoPlayerController? createVideoController({
+  static Future<VideoPlayerController?> createVideoController({
     required String url,
     required String? videoFormat,
     required bool isOffline,
@@ -19,7 +20,7 @@ class VideoInitializer {
     bool allowCacheFile = false,
     void Function(List<File>?)? onCacheFileCompleted,
     void Function(dynamic)? onCacheFileFailed,
-  }) {
+  }) async {
     VideoPlayerController? controller;
 
     if (!isOffline) {
@@ -68,8 +69,28 @@ class VideoInitializer {
         );
       }
     } else {
-      // Offline video playback
-      controller = VideoPlayerController.file(File(url));
+      // Offline video playback - check for cached content first
+      final cachedFile = await _findCachedVideoFile(url, videoFormat);
+      if (cachedFile != null && cachedFile.existsSync()) {
+        if (kDebugMode) {
+          print('DEBUG: Playing from cached file: ${cachedFile.path}');
+        }
+        controller = VideoPlayerController.file(cachedFile);
+      } else {
+        if (kDebugMode) {
+          print('DEBUG: No cached file found for offline playback, trying URL as file path: $url');
+        }
+        // Fallback to trying the URL as a file path
+        final file = File(url);
+        if (file.existsSync()) {
+          controller = VideoPlayerController.file(file);
+        } else {
+          if (kDebugMode) {
+            print('DEBUG: File does not exist: $url');
+          }
+          controller = null; // No valid file found
+        }
+      }
     }
 
     return controller;
@@ -106,14 +127,17 @@ class VideoInitializer {
     }
   }
 
-  /// Disposes of a video controller safely
-  static Future<void> disposeController(
-    VideoPlayerController? controller,
-  ) async {
+  /// Finds cached video file for offline playback
+  static Future<File?> _findCachedVideoFile(String url, String? videoFormat) async {
     try {
-      await controller?.dispose();
+      final quality = videoFormat?.toLowerCase();
+      final cachedFile = await VideoCacheManager().getCachedFile(url, quality: quality);
+      return cachedFile;
     } catch (e) {
-      debugPrint('Error disposing video controller: $e');
+      if (kDebugMode) {
+        print('DEBUG: Error finding cached file: $e');
+      }
+      return null;
     }
   }
 }
