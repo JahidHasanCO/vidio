@@ -132,6 +132,8 @@ class _VidioState extends State<Vidio>
   final List<double> _bandwidthHistory = []; // Bandwidth history for averaging
   Timer? _bandwidthMonitorTimer; // Timer for bandwidth monitoring
   bool _isConnected = true; // Network connectivity status
+  DateTime? _lastQualitySwitch; // Prevent frequent quality switches
+  String? _currentQualityUrl; // Track current quality URL to avoid unnecessary switches
 
   // Manager instances
   late VideoControllerManager videoControllerManager;
@@ -876,13 +878,30 @@ class _VidioState extends State<Vidio>
 
     // Handle network loss: continue playing cached ranges
     if (controller != null && !_isConnected && controller!.value.isBuffering) {
-      // If network is lost and buffering, pause and wait for cached content
-      if (controller!.value.isPlaying) {
+      final bufferedAhead = controller!.value.buffered.isNotEmpty
+          ? (controller!.value.buffered.last.end - controller!.value.position).inSeconds
+          : 0;
+
+      // Only pause if we have less than 10 seconds of buffered content
+      if (bufferedAhead < 10 && controller!.value.isPlaying) {
+        if (kDebugMode) {
+          print('DEBUG: Network lost, pausing to wait for cached content');
+        }
         controller!.pause();
-        // Resume when cached content is available
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted && !_isConnected && _cachedRanges.isNotEmpty) {
-            controller!.play();
+
+        // Resume after a short delay if we have cached content
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && !_isConnected && controller != null) {
+            final newBufferedAhead = controller!.value.buffered.isNotEmpty
+                ? (controller!.value.buffered.last.end - controller!.value.position).inSeconds
+                : 0;
+
+            if (newBufferedAhead > 5) {
+              if (kDebugMode) {
+                print('DEBUG: Resuming playback from cached content');
+              }
+              controller!.play();
+            }
           }
         });
       }
@@ -1339,188 +1358,7 @@ class _VidioState extends State<Vidio>
     _prefetchSegments();
   }
 
-  /// Caches the next segment in sequence
-  void _cacheNextSegment() {
-    if (!widget.allowCacheFile ||
-        controller == null ||
-        _currentVideoUrl == null) {
-      if (kDebugMode) {
-        print('DEBUG: Cannot cache next segment - missing requirements');
-      }
-      return;
-    }
 
-    final currentPosition = controller!.value.position.inMilliseconds;
-    final totalDuration = _currentVideoDurationMs;
-
-    if (kDebugMode) {
-      print('DEBUG: Next segment calculation:');
-      print(
-        'DEBUG:   Current position: ${currentPosition}ms'
-        ' (${Duration(milliseconds: currentPosition).inSeconds}s)',
-      );
-      print(
-        'DEBUG:   Total duration: ${totalDuration}ms'
-        ' (${Duration(milliseconds: totalDuration).inSeconds}s)',
-      );
-      print('DEBUG:   Caching active: $_isContinuousCachingActive');
-    }
-    if (totalDuration == 0) {
-      if (kDebugMode) {
-        print('DEBUG: Cannot cache next segment - invalid duration');
-      }
-      return;
-    }
-
-    // Find the next position to cache (look for gaps in cached ranges)
-    final nextPositionMs =
-        _findNextCachePosition(currentPosition, totalDuration);
-
-    if (nextPositionMs >= totalDuration) {
-      if (kDebugMode) {
-        print('DEBUG: Reached end of video, stopping continuous cache');
-      }
-      _isContinuousCachingActive = false;
-      return;
-    }
-
-    final startByte = _calculateCacheStartByte(nextPositionMs, totalDuration);
-    final endByte = _calculateCacheEndByte(nextPositionMs, totalDuration);
-
-    // Validate byte range
-    if (startByte >= endByte || startByte < 0) {
-      if (kDebugMode) {
-        print(
-          'DEBUG: Invalid byte range: '
-          '$startByte - $endByte, trying next segment in 2 seconds',
-        );
-      }
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted && _isContinuousCachingActive) {
-          _prefetchSegments();
-        }
-      });
-      return;
-    }
-
-    // Check if this range is already cached
-    if (_isRangeCached(startByte, endByte)) {
-      if (kDebugMode) {
-        print(
-          'DEBUG: Range already cached '
-          '($startByte-$endByte), trying next segment in 500ms',
-        );
-      }
-      // Try next segment
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && _isContinuousCachingActive) {
-          _prefetchSegments();
-        }
-      });
-      return;
-    }
-
-    if (kDebugMode) {
-      print(
-        'DEBUG: Caching next segment: $startByte - $endByte '
-        '(time: ${Duration(milliseconds: nextPositionMs).inSeconds}s - '
-        '${Duration(milliseconds: (nextPositionMs + 30000).clamp(0, totalDuration)).inSeconds}s)',
-      );
-    }
-
-    VideoCacheManager().cacheVideoFilePartial(
-      _currentVideoUrl!,
-      startByte: startByte,
-      endByte: endByte,
-      headers: widget.headers,
-      onProgress: _updateCachingProgress,
-      onRangeCached: (int start, int end) {
-        if (kDebugMode) {
-          print('DEBUG: Range cached successfully: $start - $end');
-        }
-        _addCachedRange(start, end);
-        if (mounted) {
-          setState(() {}); // Update UI to show new cached range
-        }
-
-        // Update overall progress
-        final overallProgress = getOverallCachingProgress();
-        if (kDebugMode) {
-          print(
-            'DEBUG: Overall caching progress: '
-            '${(overallProgress * 100).toInt()}%',
-          );
-        }
-      },
-      onLog: (String log) {
-        if (log.contains('Cache completed') ||
-            log.contains('Cache failed') ||
-            log.contains('Starting')) {
-          if (kDebugMode) {
-            print('DEBUG: Cache log: $log');
-          }
-        }
-      },
-      onComplete: (File? file) {
-        if (file != null) {
-          if (kDebugMode) {
-            print(
-              'DEBUG: Segment cache completed successfully, '
-              'queuing next segment in 1 second',
-            );
-          }
-          widget.onCacheFileCompleted?.call([file]);
-
-          // Continue with next segment after a short delay
-          Future.delayed(const Duration(seconds: 1), () {
-            if (mounted && _isContinuousCachingActive) {
-              if (kDebugMode) {
-                print('DEBUG: Starting next segment after delay');
-              }
-              _prefetchSegments();
-            } else {
-              if (kDebugMode) {
-                print(
-                  'DEBUG: Not starting next segment - mounted: '
-                  '$mounted, caching active: $_isContinuousCachingActive',
-                );
-              }
-            }
-          });
-        } else {
-          if (kDebugMode) {
-            print(
-              'DEBUG: Segment cache completed but no '
-              'file returned, trying next segment in 2 seconds',
-            );
-          }
-          // Try next segment after error
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted && _isContinuousCachingActive) {
-              _prefetchSegments();
-            }
-          });
-        }
-      },
-      onError: (dynamic error) {
-        if (kDebugMode) {
-          print(
-            'DEBUG: Segment cache error: '
-            '$error, trying next segment in 2 seconds',
-          );
-        }
-        // Try next segment after error
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted && _isContinuousCachingActive) {
-            if (kDebugMode) {
-              print('DEBUG: Retrying after error');
-            }
-            _prefetchSegments();
-          }
-        });
-      },
-    );
-  }
 
   /// Stops continuous caching
   void _stopContinuousCaching() {
@@ -1538,58 +1376,7 @@ class _VidioState extends State<Vidio>
     _currentVideoUrl = null;
   }
 
-  /// Finds the next position that needs to be cached
-  /// (looks for gaps in cached ranges)
-  int _findNextCachePosition(int currentPositionMs, int totalDurationMs) {
-    // Always try to cache ahead of current position first
-    const cacheAheadMs = 30000; // 30 seconds ahead
-    var nextPositionMs = currentPositionMs + cacheAheadMs;
 
-    // If we have cached ranges, look for gaps
-    if (_cachedRanges.isNotEmpty) {
-      // Sort cached ranges by start byte
-      final sortedRanges = List<CachedRange>.from(_cachedRanges)
-        ..sort((a, b) => a.startByte.compareTo(b.startByte));
-
-      // Convert current position to byte position for comparison
-      final currentBytePos =
-          _calculateCacheStartByte(currentPositionMs, totalDurationMs);
-
-      // Look for gaps in cached ranges
-      for (var i = 0; i < sortedRanges.length; i++) {
-        final range = sortedRanges[i];
-
-        // If current position is before this range, cache from current position
-        if (currentBytePos < range.startByte) {
-          // Convert back to time position
-          final timeProgress = range.startByte / _estimateFileSize();
-          nextPositionMs = (timeProgress * totalDurationMs).toInt();
-          break;
-        }
-
-        // Check for gap after this range (if not the last range)
-        if (i < sortedRanges.length - 1) {
-          final nextRange = sortedRanges[i + 1];
-          final gapStart = range.endByte;
-          final gapEnd = nextRange.startByte;
-
-          // If there's a significant gap, cache it
-          if (gapEnd - gapStart > 1000000) {
-            // 1MB gap
-            final timeProgress = gapStart / _estimateFileSize();
-            nextPositionMs = (timeProgress * totalDurationMs).toInt();
-            break;
-          }
-        }
-      }
-    }
-
-    // Ensure we don't exceed video duration
-    return nextPositionMs.clamp(
-      0,
-      totalDurationMs - 1000,
-    ); // Leave 1 second margin
-  }
 
   /// Calculates start byte for caching based on playback position
   int _calculateCacheStartByte(int currentPositionMs, int totalDurationMs) {
@@ -1758,27 +1545,43 @@ class _VidioState extends State<Vidio>
   void _adaptQualityBasedOnBandwidth() {
     if (m3u8UrlList.isEmpty || _currentBandwidth == 0) return;
 
+    // Prevent frequent quality switches (minimum 30 seconds between switches)
+    if (_lastQualitySwitch != null &&
+        DateTime.now().difference(_lastQualitySwitch!).inSeconds < 30) {
+      return;
+    }
+
+    // Don't switch quality if video is currently buffering
+    if (controller != null && controller!.value.isBuffering) {
+      return;
+    }
+
     // Simple adaptive logic: switch to lower quality if bandwidth is low
     const lowBandwidthThreshold = 100000; // 100KB/s
     const highBandwidthThreshold = 500000; // 500KB/s
 
+    String targetQuality = m3u8Quality;
+
     if (_currentBandwidth < lowBandwidthThreshold && m3u8Quality != '360p') {
-      // Switch to lower quality
-      final lowQuality = m3u8UrlList.firstWhere(
-        (data) => data.dataQuality == '360p',
-        orElse: () => m3u8UrlList.first,
-      );
-      if (lowQuality.dataURL != null) {
-        onSelectQuality(lowQuality);
-      }
+      targetQuality = '360p';
     } else if (_currentBandwidth > highBandwidthThreshold && m3u8Quality == '360p') {
-      // Switch to higher quality
-      final highQuality = m3u8UrlList.firstWhere(
-        (data) => data.dataQuality == '720p',
+      targetQuality = '720p';
+    }
+
+    // Only switch if quality actually changes
+    if (targetQuality != m3u8Quality) {
+      final qualityData = m3u8UrlList.firstWhere(
+        (data) => data.dataQuality == targetQuality,
         orElse: () => m3u8UrlList.first,
       );
-      if (highQuality.dataURL != null) {
-        onSelectQuality(highQuality);
+
+      if (qualityData.dataURL != null && qualityData.dataURL != _currentQualityUrl) {
+        _lastQualitySwitch = DateTime.now();
+        _currentQualityUrl = qualityData.dataURL;
+        if (kDebugMode) {
+          print('DEBUG: Switching quality to $targetQuality (bandwidth: ${_currentBandwidth.toInt()} B/s)');
+        }
+        onSelectQuality(qualityData);
       }
     }
   }
@@ -1804,9 +1607,9 @@ class _VidioState extends State<Vidio>
     final currentPosition = controller!.value.position.inMilliseconds;
     final totalDuration = _currentVideoDurationMs;
 
-    // Prefetch next 3 segments (e.g., 30 seconds each)
-    const segmentDurationMs = 30000;
-    const prefetchCount = 3;
+    // Prefetch next 2 segments (e.g., 20 seconds each) - more conservative
+    const segmentDurationMs = 20000;
+    const prefetchCount = 2;
 
     for (int i = 0; i < prefetchCount; i++) {
       final segmentStart = currentPosition + (i * segmentDurationMs);
@@ -1848,15 +1651,19 @@ class _VidioState extends State<Vidio>
         _addCachedRange(start, end);
         // Store in memory cache
         _storeInMemoryCache('$start-$end', Uint8List(0)); // Placeholder, actual data from file
-        // Continue prefetching
-        _processPrefetchQueue();
+        // Continue prefetching with a small delay to avoid interfering with playback
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _processPrefetchQueue();
+        });
       },
       onLog: (log) {
         _cacheLogs.add(log);
       },
       onError: (error) {
-        // Handle error
-        _processPrefetchQueue();
+        // Handle error with delay to avoid rapid retries
+        Future.delayed(const Duration(seconds: 2), () {
+          _processPrefetchQueue();
+        });
       },
     );
   }
