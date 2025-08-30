@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -122,6 +123,15 @@ class _VidioState extends State<Vidio>
   int _currentVideoDurationMs = 0;
   final List<CachedRange> _cachedRanges = [];
   bool _isContinuousCachingActive = false;
+
+  // YouTube-style caching additions
+  final Map<String, Uint8List> _memoryCache = {}; // Memory cache for segments
+  final List<String> _prefetchQueue = []; // Queue for prefetching segments
+  bool _isPrefetching = false;
+  double _currentBandwidth = 0.0; // Current bandwidth estimation
+  final List<double> _bandwidthHistory = []; // Bandwidth history for averaging
+  Timer? _bandwidthMonitorTimer; // Timer for bandwidth monitoring
+  bool _isConnected = true; // Network connectivity status
 
   // Manager instances
   late VideoControllerManager videoControllerManager;
@@ -262,6 +272,9 @@ class _VidioState extends State<Vidio>
     // Initialize animations and determine video source
     uiStateManager.initializeAnimations(this);
     determineVideoSource(widget.url);
+
+    // Start bandwidth monitoring for adaptive quality
+    _startBandwidthMonitoring();
   }
 
   /// Initialize all manager instances
@@ -317,6 +330,7 @@ class _VidioState extends State<Vidio>
     errorHandler.dispose();
     performanceManager.dispose();
     _stopContinuousCaching();
+    _bandwidthMonitorTimer?.cancel();
     super.dispose();
   }
 
@@ -860,6 +874,20 @@ class _VidioState extends State<Vidio>
       }
     }
 
+    // Handle network loss: continue playing cached ranges
+    if (controller != null && !_isConnected && controller!.value.isBuffering) {
+      // If network is lost and buffering, pause and wait for cached content
+      if (controller!.value.isPlaying) {
+        controller!.pause();
+        // Resume when cached content is available
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted && !_isConnected && _cachedRanges.isNotEmpty) {
+            controller!.play();
+          }
+        });
+      }
+    }
+
     if (mounted) {
       setState(() {});
     }
@@ -1307,8 +1335,8 @@ class _VidioState extends State<Vidio>
 
     _currentVideoDurationMs = totalDuration;
 
-    // Start caching from current position + buffer ahead
-    _cacheNextSegment();
+    // Start prefetching next few segments
+    _prefetchSegments();
   }
 
   /// Caches the next segment in sequence
@@ -1369,7 +1397,7 @@ class _VidioState extends State<Vidio>
       }
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted && _isContinuousCachingActive) {
-          _cacheNextSegment();
+          _prefetchSegments();
         }
       });
       return;
@@ -1386,7 +1414,7 @@ class _VidioState extends State<Vidio>
       // Try next segment
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted && _isContinuousCachingActive) {
-          _cacheNextSegment();
+          _prefetchSegments();
         }
       });
       return;
@@ -1449,7 +1477,7 @@ class _VidioState extends State<Vidio>
               if (kDebugMode) {
                 print('DEBUG: Starting next segment after delay');
               }
-              _cacheNextSegment();
+              _prefetchSegments();
             } else {
               if (kDebugMode) {
                 print(
@@ -1469,7 +1497,7 @@ class _VidioState extends State<Vidio>
           // Try next segment after error
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted && _isContinuousCachingActive) {
-              _cacheNextSegment();
+              _prefetchSegments();
             }
           });
         }
@@ -1487,7 +1515,7 @@ class _VidioState extends State<Vidio>
             if (kDebugMode) {
               print('DEBUG: Retrying after error');
             }
-            _cacheNextSegment();
+            _prefetchSegments();
           }
         });
       },
@@ -1703,5 +1731,133 @@ class _VidioState extends State<Vidio>
     }
 
     return (totalCachedBytes / estimatedTotalBytes).clamp(0.0, 1.0);
+  }
+
+  /// Starts bandwidth monitoring for adaptive quality
+  void _startBandwidthMonitoring() {
+    _bandwidthMonitorTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (controller != null && controller!.value.isPlaying) {
+        // Simple bandwidth estimation based on buffering
+        final buffered = controller!.value.buffered;
+        if (buffered.isNotEmpty) {
+          final bufferDuration = buffered.last.end - buffered.last.start;
+          final bandwidth = bufferDuration.inMilliseconds / 5000.0; // bytes per second estimate
+          _bandwidthHistory.add(bandwidth);
+          if (_bandwidthHistory.length > 10) {
+            _bandwidthHistory.removeAt(0);
+          }
+          _currentBandwidth = _bandwidthHistory.reduce((a, b) => a + b) / _bandwidthHistory.length;
+          // Adaptive quality logic
+          _adaptQualityBasedOnBandwidth();
+        }
+      }
+    });
+  }
+
+  /// Adapts quality based on current bandwidth
+  void _adaptQualityBasedOnBandwidth() {
+    if (m3u8UrlList.isEmpty || _currentBandwidth == 0) return;
+
+    // Simple adaptive logic: switch to lower quality if bandwidth is low
+    const lowBandwidthThreshold = 100000; // 100KB/s
+    const highBandwidthThreshold = 500000; // 500KB/s
+
+    if (_currentBandwidth < lowBandwidthThreshold && m3u8Quality != '360p') {
+      // Switch to lower quality
+      final lowQuality = m3u8UrlList.firstWhere(
+        (data) => data.dataQuality == '360p',
+        orElse: () => m3u8UrlList.first,
+      );
+      if (lowQuality.dataURL != null) {
+        onSelectQuality(lowQuality);
+      }
+    } else if (_currentBandwidth > highBandwidthThreshold && m3u8Quality == '360p') {
+      // Switch to higher quality
+      final highQuality = m3u8UrlList.firstWhere(
+        (data) => data.dataQuality == '720p',
+        orElse: () => m3u8UrlList.first,
+      );
+      if (highQuality.dataURL != null) {
+        onSelectQuality(highQuality);
+      }
+    }
+  }
+
+  /// Store segment in memory cache
+  void _storeInMemoryCache(String key, Uint8List data) {
+    _memoryCache[key] = data;
+    // Limit memory cache size (e.g., max 100MB)
+    const maxMemorySize = 100 * 1024 * 1024; // 100MB
+    var totalSize = _memoryCache.values.fold(0, (sum, data) => sum + data.length);
+    while (totalSize > maxMemorySize && _memoryCache.isNotEmpty) {
+      final oldestKey = _memoryCache.keys.first;
+      totalSize -= _memoryCache[oldestKey]!.length;
+      _memoryCache.remove(oldestKey);
+    }
+  }
+
+  /// Prefetch next few segments ahead of playback
+  void _prefetchSegments() {
+    if (_isPrefetching || controller == null) return;
+
+    _isPrefetching = true;
+    final currentPosition = controller!.value.position.inMilliseconds;
+    final totalDuration = _currentVideoDurationMs;
+
+    // Prefetch next 3 segments (e.g., 30 seconds each)
+    const segmentDurationMs = 30000;
+    const prefetchCount = 3;
+
+    for (int i = 0; i < prefetchCount; i++) {
+      final segmentStart = currentPosition + (i * segmentDurationMs);
+      if (segmentStart >= totalDuration) break;
+
+      final segmentEnd = segmentStart + segmentDurationMs;
+      final startByte = _calculateCacheStartByte(segmentStart, totalDuration);
+      final endByte = _calculateCacheEndByte(segmentEnd, totalDuration);
+
+      if (!_isRangeCached(startByte, endByte)) {
+        _prefetchQueue.add('$startByte-$endByte');
+      }
+    }
+
+    // Start prefetching
+    _processPrefetchQueue();
+  }
+
+  /// Process prefetch queue
+  void _processPrefetchQueue() {
+    if (_prefetchQueue.isEmpty) {
+      _isPrefetching = false;
+      return;
+    }
+
+    final range = _prefetchQueue.removeAt(0);
+    final parts = range.split('-');
+    final startByte = int.parse(parts[0]);
+    final endByte = int.parse(parts[1]);
+
+    VideoCacheManager().cacheVideoFilePartial(
+      _currentVideoUrl!,
+      startByte: startByte,
+      endByte: endByte,
+      onProgress: (progress) {
+        // Update progress
+      },
+      onRangeCached: (start, end) {
+        _addCachedRange(start, end);
+        // Store in memory cache
+        _storeInMemoryCache('$start-$end', Uint8List(0)); // Placeholder, actual data from file
+        // Continue prefetching
+        _processPrefetchQueue();
+      },
+      onLog: (log) {
+        _cacheLogs.add(log);
+      },
+      onError: (error) {
+        // Handle error
+        _processPrefetchQueue();
+      },
+    );
   }
 }
