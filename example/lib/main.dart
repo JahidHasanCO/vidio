@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Add this import
 import 'package:vidio/vidio.dart';
+import 'package:video_player/video_player.dart';
 
 void main() => runApp(const MyApp());
 
@@ -15,30 +17,56 @@ class MyAppState extends State<MyApp> {
   bool fullscreen = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Ensure overlays are visible initially
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  void _handleFullScreen(bool value) {
+    setState(() {
+      fullscreen = value;
+      if (fullscreen) {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+        // landscape mode
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      } else {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        // portrait mode
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ]);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Material App',
+      title: 'Vidio Example',
       home: Scaffold(
         backgroundColor: Colors.black,
-        appBar: fullscreen == false
-            ? null
-            : null,
-        body: Padding(
-          padding: fullscreen
-              ? EdgeInsets.zero
-              : const EdgeInsets.only(top: 32.0),
+        appBar: fullscreen ? null : AppBar(title: const Text('Vidio Example')),
+        body: Center(
           child: Vidio(
             aspectRatio: 16 / 9,
-            url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
-            headers: const {'Referer': 'https://www.google.com'},
-            allowCacheFile: false,
+            url:
+                "https://stream-fastly.castr.com/5b9352dbda7b8c769937e459/live_2361c920455111ea85db6911fe397b9e/index.fmp4.m3u8",
+            headers: const {
+              "User-Agent":
+                  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36 OPR/38.0.2220.41"
+            },
+            allowCacheFile: true,
             autoPlayVideoAfterInit: true,
             onCacheFileCompleted: (files) {
               if (kDebugMode) {
                 print('Cached file length ::: ${files?.length}');
               }
-
               if (files != null && files.isNotEmpty) {
                 for (var file in files) {
                   if (kDebugMode) {
@@ -52,52 +80,40 @@ class MyAppState extends State<MyApp> {
                 print('Cache file error ::: $error');
               }
             },
-            videoStyle: const VideoStyle(
+            videoStyle:  const VideoStyle(
               qualityStyle: TextStyle(
-                fontSize: 16.0,
+                fontSize: 16,
                 fontWeight: FontWeight.w500,
                 color: Colors.white,
               ),
-              forwardAndBackwardBtSize: 30.0,
-              playButtonIconSize: 50.0,
-              // playIcon: Icon(
-              //   Icons.play_arrow_outlined,
-              //   size: 45.0,
-              //   color: Colors.white,
-              // ),
-              // pauseIcon: Icon(
-              //   Icons.pause_outlined,
-              //   size: 45.0,
-              //   color: Colors.white,
-              // ),
-              videoQualityPadding: EdgeInsets.all(5.0),
-              // showLiveDirectButton: true,
-              enableSystemOrientationsOverride: true,
+              progressIndicatorColors: VideoProgressColors(
+                playedColor: Colors.red,
+                backgroundColor: Colors.grey,
+                bufferedColor: Colors.white,
+              ),
+              forwardAndBackwardBtSize: 32,
+              playButtonIconSize: 32,
+              fullScreenIconSize: 22,
+              videoQualityPadding: EdgeInsets.all(5),
             ),
-            // videoLoadingStyle: const VideoLoadingStyle(
-            //   loading: Center(
-            //     child: Column(
-            //       mainAxisAlignment: MainAxisAlignment.center,
-            //       crossAxisAlignment: CrossAxisAlignment.center,
-            //       children: [
-            //         Image(
-            //           image: AssetImage('image/yoyo_logo.png'),
-            //           fit: BoxFit.fitHeight,
-            //           height: 50,
-            //         ),
-            //         SizedBox(height: 16.0),
-            //         Text("Loading video..."),
-            //       ],
-            //     ),
-            //   ),
-            // ),
-            onFullScreen: (value) {
-              setState(() {
-                if (fullscreen != value) {
-                  fullscreen = value;
-                }
-              });
-            },
+            videoLoadingStyle: VideoLoadingStyle(
+              loading: ColoredBox(
+                color: Colors.black,
+                child: Center(
+                  child: SizedBox(
+                    height: 50,
+                    width: 50,
+                    child: CircularProgressIndicator(
+                      valueColor:
+                          const AlwaysStoppedAnimation<Color>(Colors.white),
+                      color: Colors.grey[700] ?? Colors.grey,
+                      strokeCap: StrokeCap.round,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            onFullScreen: _handleFullScreen, // Use the new handler
           ),
         ),
       ),
