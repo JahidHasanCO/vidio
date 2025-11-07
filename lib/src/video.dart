@@ -115,17 +115,12 @@ class _VidioState extends State<Vidio>
   bool loop = false;
   bool _managersInitialized = false;
 
-  // Caching progress state
+  // YouTube-style adaptive caching state
   CachingProgressData? _cachingProgress;
   final List<String> _cacheLogs = [];
-  String? _currentVideoUrl;
-  int _currentVideoDurationMs = 0;
   final List<CachedRange> _cachedRanges = [];
-  bool _isContinuousCachingActive = false;
-
-  // YouTube-style caching additions
-  final List<String> _prefetchQueue = []; // Queue for prefetching segments
-  bool _isPrefetching = false;
+  final StreamController<Duration> _positionStreamController =
+      StreamController<Duration>.broadcast();
 
   // Manager instances
   late VideoControllerManager videoControllerManager;
@@ -140,94 +135,54 @@ class _VidioState extends State<Vidio>
 
   // Getters for manager properties
   VideoPlayerController? get controller => videoControllerManager.controller;
-
   List<M3U8Data> get m3u8UrlList => m3u8Manager.m3u8UrlList;
-
   List<AudioModel> get audioList => m3u8Manager.audioList;
-
   String get m3u8Quality => m3u8Manager.m3u8Quality;
-
   set m3u8Quality(String quality) => m3u8Manager.setQuality(quality);
-
   bool get fullScreen => uiStateManager.fullScreen;
-
   set fullScreen(bool value) => uiStateManager.fullScreen = value;
-
   bool get showMenu => uiStateManager.showMenu;
-
   set showMenu(bool value) => uiStateManager.showMenu = value;
-
   bool get isQualityPickerVisible => uiStateManager.isQualityPickerVisible;
-
   set isQualityPickerVisible(bool value) =>
       uiStateManager.isQualityPickerVisible = value;
-
   bool get isLocked => uiStateManager.isLocked;
-
   set isLocked(bool value) => uiStateManager.isLocked = value;
-
   bool get isAmbientMode => uiStateManager.isAmbientMode;
-
   set isAmbientMode(bool value) => uiStateManager.isAmbientMode = value;
-
   bool get hideQualityList => uiStateManager.hideQualityList;
-
   set hideQualityList(bool value) => uiStateManager.hideQualityList = value;
-
   bool get hasInitError => uiStateManager.hasInitError;
-
   set hasInitError(bool value) => uiStateManager.hasInitError = value;
-
   OverlayEntry? get overlayEntry => uiStateManager.overlayEntry;
-
   set overlayEntry(OverlayEntry? value) => uiStateManager.overlayEntry = value;
-
   GlobalKey get videoQualityKey => uiStateManager.videoQualityKey;
-
   String? get videoDuration => timingManager.videoDuration;
-
   set videoDuration(String? value) => timingManager.videoDuration = value;
-
   String? get videoSeek => timingManager.videoSeek;
-
   set videoSeek(String? value) => timingManager.videoSeek = value;
-
   Duration? get duration => timingManager.duration;
-
   set duration(Duration? value) => timingManager.duration = value;
-
   double? get videoSeekSecond => timingManager.videoSeekSecond;
-
   set videoSeekSecond(double? value) => timingManager.videoSeekSecond = value;
-
   double? get videoDurationSecond => timingManager.videoDurationSecond;
-
   set videoDurationSecond(double? value) =>
       timingManager.videoDurationSecond = value;
-
   double get playbackSpeed => playbackManager.playbackSpeed;
-
   set playbackSpeed(double value) => playbackManager.playbackSpeed = value;
-
   List<double> get playbackSpeeds => playbackManager.playbackSpeeds;
-
   Duration? get lastPlayedPos => playbackManager.lastPlayedPos;
-
   set lastPlayedPos(Duration? value) => playbackManager.lastPlayedPos = value;
-
   bool get isAtLivePosition => playbackManager.isAtLivePosition;
-
   set isAtLivePosition(bool value) => playbackManager.isAtLivePosition = value;
 
-  // Legacy state variables (to be removed after full integration)
+  // Legacy state variables
   bool? isOffline;
-  String? m3u8Content;
-  String? subtitleContent;
-  bool showSubtitles = false;
 
   @override
   void didUpdateWidget(covariant Vidio oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     if (widget.playbackSpeed != oldWidget.playbackSpeed &&
         widget.playbackSpeed != playbackSpeed) {
       setPlaybackSpeed(widget.playbackSpeed, notify: false);
@@ -235,11 +190,11 @@ class _VidioState extends State<Vidio>
 
     // If URL changed, reset everything for new video
     if (widget.url != oldWidget.url) {
+      _stopAdaptiveCaching();
       _cachedRanges.clear();
       _cacheLogs.clear();
-      _stopContinuousCaching();
       uiStateManager.resetGlobalKey();
-      // Don't call determineVideoSource here as it will be called by initState
+      determineVideoSource(widget.url);
     }
   }
 
@@ -250,21 +205,18 @@ class _VidioState extends State<Vidio>
     // Register lifecycle observer
     WidgetsBinding.instance.addObserver(this);
 
-    // Initialize all managers first
+    // Initialize all managers
     _initializeManagers();
     _managersInitialized = true;
 
-    // Now set initial values (managers are initialized)
+    // Set initial values
     fullScreen = widget.initFullScreen;
     isAmbientMode = widget.isAmbientMode;
     playbackSpeed = widget.playbackSpeed;
 
     // Initialize animations and determine video source
     uiStateManager.initializeAnimations(this);
-    // Don't await here - let it run asynchronously
     determineVideoSource(widget.url);
-
-  // No bandwidth-based adaptive quality here; keep caching simple and robust
   }
 
   /// Initialize all manager instances
@@ -313,15 +265,19 @@ class _VidioState extends State<Vidio>
     // Unregister lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
 
+    // Stop adaptive caching
+    _stopAdaptiveCaching();
+
+    // Clean up managers
     m3u8Clean();
     controller?.removeListener(listener);
     controller?.dispose();
     uiStateManager.dispose();
     errorHandler.dispose();
     performanceManager.dispose();
-    _stopContinuousCaching();
+    _positionStreamController.close();
 
-    // Clear cached ranges and logs
+    // Clear cached data
     _cachedRanges.clear();
     _cacheLogs.clear();
 
@@ -333,47 +289,33 @@ class _VidioState extends State<Vidio>
     super.didChangeAppLifecycleState(state);
 
     if (kDebugMode) {
-      print('DEBUG: App lifecycle changed: $state');
+      print('🔄 App lifecycle changed: $state');
     }
 
     switch (state) {
       case AppLifecycleState.resumed:
-        // App came back to foreground
+        // App came back to foreground - resume caching if playing
         if (controller != null &&
             controller!.value.isPlaying &&
-            widget.allowCacheFile &&
-            !_isContinuousCachingActive) {
-          final currentUrl = controller!.dataSource;
-          if (currentUrl.isNotEmpty) {
-            if (kDebugMode) {
-              print('DEBUG: Resuming continuous caching after app resume');
-            }
-            _startContinuousCaching(currentUrl);
-          }
+            widget.allowCacheFile) {
+          _startAdaptiveCaching();
         }
       case AppLifecycleState.paused:
-        // App went to background - caching should continue
+        // App went to background - caching continues
         if (kDebugMode) {
-          print(
-            'DEBUG: App paused, continuous caching will continue in background',
-          );
+          print('⏸️ App paused, adaptive caching continues in background');
         }
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
-        // App is inactive or detached
-        if (kDebugMode) {
-          print('DEBUG: App inactive/detached, stopping continuous caching');
-        }
-        _stopContinuousCaching();
+        // App is being terminated
+        _stopAdaptiveCaching();
       case AppLifecycleState.hidden:
-        // App is hidden but still running
         break;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Prevent accessing managers before they're initialized
     if (!_managersInitialized) {
       return buildLoadingState();
     }
@@ -397,7 +339,6 @@ class _VidioState extends State<Vidio>
     );
   }
 
-  /// Builds the loading state when video is not initialized
   Widget buildLoadingState() {
     return VideoUIBuilder.buildLoadingState(
       widget.videoLoadingStyle,
@@ -405,7 +346,6 @@ class _VidioState extends State<Vidio>
     );
   }
 
-  /// Builds the main video player with controls overlay
   Widget buildVideoPlayer() {
     return Stack(
       children: <Widget>[
@@ -415,7 +355,6 @@ class _VidioState extends State<Vidio>
     );
   }
 
-  /// Builds the gesture detector for video player interactions
   Widget buildGestureDetector() {
     return GestureDetector(
       onTap: () {
@@ -436,7 +375,7 @@ class _VidioState extends State<Vidio>
         } else if (localPosition.dx >
             configManager.getFastForwardThreshold(width)) {
           controller!.fastForward().whenComplete(
-                () => eventManager.callRewind(controller!.value),
+                () => eventManager.callFastForward(controller!.value),
               );
         } else {
           togglePlay();
@@ -489,7 +428,6 @@ class _VidioState extends State<Vidio>
     );
   }
 
-  /// Builds the controls overlay (action bar, bottom controls, etc.)
   List<Widget> buildControlsOverlay() {
     return VideoUIBuilder.buildControlsOverlay(
       isLocked: isLocked,
@@ -628,12 +566,11 @@ class _VidioState extends State<Vidio>
         }
       },
       cachingProgress: _cachingProgress,
-      cachedRanges: getCachedRanges(),
+      cachedRanges: _cachedRanges,
     );
   }
 
   Widget m3u8List() {
-    // Only create the overlay content if it should be visible
     if (!isQualityPickerVisible) {
       return const SizedBox.shrink();
     }
@@ -641,8 +578,9 @@ class _VidioState extends State<Vidio>
     final renderBox =
         videoQualityKey.currentContext?.findRenderObject() as RenderBox?;
     final offset = renderBox?.localToGlobal(Offset.zero);
+
     return Container(
-      key: videoQualityKey, // Use the GlobalKey here
+      key: videoQualityKey,
       child: VideoQualityPicker(
         videoData: m3u8UrlList,
         videoStyle: widget.videoStyle,
@@ -675,26 +613,19 @@ class _VidioState extends State<Vidio>
   }
 
   void determineVideoSource(String url) async {
-    // Clear previous cached ranges for new video
+    // Stop any existing adaptive caching
+    _stopAdaptiveCaching();
     _cachedRanges.clear();
     _cacheLogs.clear();
-    _stopContinuousCaching();
 
-    // Clear cache entries for this URL to prevent showing old cached data
-    VideoCacheManager().clearCacheForUrl(url);
-
-    // Reset GlobalKey to prevent duplicate key errors when switching videos
+    // Reset GlobalKey to prevent duplicate key errors
     uiStateManager.resetGlobalKey();
 
     final isNetwork = VideoParser.isNetworkUrl(url);
     final detectedFormat = VideoParser.determineVideoFormat(url);
 
-    // Check if we have cached content for this video
-    final hasCachedContent = await _checkForCachedContent(url, detectedFormat);
-
     setState(() {
-      // If it's a network URL but we have cached content, we can play offline
-      isOffline = !isNetwork || (isNetwork && hasCachedContent && !_isNetworkAvailable());
+      isOffline = !isNetwork;
       videoFormat = detectedFormat;
     });
 
@@ -706,24 +637,10 @@ class _VidioState extends State<Vidio>
         getM3U8(url);
       } else {
         videoControlSetup(url);
-
-        // Handle caching for non-HLS formats
-        if (widget.allowCacheFile) {
-          final extension = detectedFormat.toLowerCase();
-          if (kDebugMode) {
-            print(
-              'DEBUG: Starting caching for format: $detectedFormat, URL: $url',
-            );
-          }
-          // Start caching immediately and also start background caching
-          _startCaching(url, quality: extension);
-        }
       }
     } else {
-      // Offline or unknown format
       videoControlSetup(url);
       if (detectedFormat == null) {
-        // Try to parse as M3U8 if format is unknown
         getM3U8(url);
       }
     }
@@ -759,9 +676,7 @@ class _VidioState extends State<Vidio>
       }
 
       if (mounted) {
-        setState(() {
-          // Update state if needed
-        });
+        setState(() {});
       }
 
       return result.result;
@@ -773,13 +688,16 @@ class _VidioState extends State<Vidio>
 
   Future<void> videoControlSetup(String? url) async {
     videoInit(url);
+
     if (controller == null) {
       if (kDebugMode) {
-        print('DEBUG: Video controller is null after initialization');
+        print('❌ Video controller is null after initialization');
       }
       return;
     }
+
     controller?.addListener(listener);
+
     if (widget.displayFullScreenAfterInit) {
       setState(() {
         fullScreen = true;
@@ -787,37 +705,33 @@ class _VidioState extends State<Vidio>
       widget.onFullScreen?.call(fullScreen);
     }
 
-    // Wait a bit for video to initialize before loading cached ranges
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-
-    // Load existing cached ranges after video is initialized
-    if (widget.allowCacheFile && url != null) {
-      _loadExistingCachedRanges(url, videoFormat);
-    }
-
     if (widget.autoPlayVideoAfterInit) {
       await controller?.play();
     }
+
     widget.onVideoInitCompleted?.call(controller!);
+
+    // Start YouTube-style adaptive caching after video is initialized
+    if (widget.allowCacheFile && url != null) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      _startAdaptiveCaching();
+    }
   }
 
   Future<void> listener() async {
+    // Handle live direct button
     if (widget.videoStyle.showLiveDirectButton) {
       if (controller?.value.position != controller?.value.duration) {
-        if (isAtLivePosition) {
-          if (mounted) {
-            setState(() {
-              isAtLivePosition = true;
-            });
-          }
+        if (!isAtLivePosition && mounted) {
+          setState(() {
+            isAtLivePosition = true;
+          });
         }
       } else {
-        if (!isAtLivePosition) {
-          if (mounted) {
-            setState(() {
-              isAtLivePosition = false;
-            });
-          }
+        if (isAtLivePosition && mounted) {
+          setState(() {
+            isAtLivePosition = false;
+          });
         }
       }
     }
@@ -825,101 +739,16 @@ class _VidioState extends State<Vidio>
     // Update timing
     timingManager.updateTiming(controller);
 
-    // Ensure timing values are updated in state
-    if (mounted && controller != null) {
-      setState(() {
-        // Force update of timing values
-      });
+    // Emit position for adaptive caching
+    if (controller != null && controller!.value.isInitialized) {
+      _positionStreamController.add(controller!.value.position);
     }
 
-    // Manage wakelock with performance monitoring
+    // Manage wakelock
     await performanceManager.measureExecutionTime(
       () => playbackManager.manageWakelock(controller),
       operationName: 'manageWakelock',
     );
-
-    // Start background caching when video starts playing (YouTube-style)
-    // Also continue caching even when paused (YouTube behavior)
-    if (controller != null &&
-        widget.allowCacheFile &&
-        !_isContinuousCachingActive &&
-        controller!.value.isInitialized) {
-      final currentUrl = controller!.dataSource;
-      if (currentUrl.isNotEmpty) {
-        if (kDebugMode) {
-          print('DEBUG: Starting continuous caching - Video initialized');
-        }
-        _startContinuousCaching(currentUrl);
-      }
-    }
-
-    // Stop continuous caching when video ends
-    if (controller != null &&
-        controller!.value.position >= controller!.value.duration &&
-        _isContinuousCachingActive) {
-      if (kDebugMode) {
-        print('DEBUG: Stopping continuous caching - Video ended');
-      }
-      _stopContinuousCaching();
-    }
-
-    // Debug: Log caching status periodically
-    if (controller != null) {
-      final position = controller!.value.position.inMilliseconds;
-      final duration = controller!.value.duration.inMilliseconds;
-      final progress = duration > 0 ? (position * 100 / duration).round() : 0;
-
-      // Log status every 5 seconds or when caching status changes
-      final shouldLog = DateTime.now().second % 5 == 0;
-      if (shouldLog) {
-        if (kDebugMode) {
-          print(
-            'DEBUG: Video status: $progress% complete, '
-            'Caching active: $_isContinuousCachingActive,'
-            ' Cached ranges: ${_cachedRanges.length}',
-          );
-        }
-        if (_cachedRanges.isNotEmpty) {
-          if (kDebugMode) {
-            print(
-              'DEBUG: Cached ranges: '
-              '${_cachedRanges.map(
-                    (r) => '${r.startByte}-${r.endByte} '
-                        '(${(r.size / 1000000).toStringAsFixed(1)}MB)',
-                  ).join(', ')}',
-            );
-          }
-          if (kDebugMode) {
-            print(
-              'DEBUG: Estimated file size: '
-              '${(_estimateFileSize() / 1000000).toStringAsFixed(1)}MB',
-            );
-          }
-        }
-      }
-    }
-
-    // Handle seeking: start caching from new position
-    if (controller != null && widget.allowCacheFile && _isContinuousCachingActive) {
-      final currentPosition = controller!.value.position.inMilliseconds;
-      final totalDuration = controller!.value.duration.inMilliseconds;
-
-      if (totalDuration > 0) {
-        // Check if user seeked to a new position (simple detection)
-        final progressRatio = currentPosition / totalDuration;
-        final startByte = (progressRatio * _estimateFileSize()).toInt();
-
-        // If seeking to uncached area, prioritize caching from that position
-        if (!_isRangeCached(startByte, startByte + 2000000)) { // Check 2MB ahead
-          if (kDebugMode) {
-            print('DEBUG: User seeked to uncached area, prioritizing cache from position');
-          }
-          // Clear current queue and start fresh from seek position
-          _prefetchQueue.clear();
-          _prefetchSegments();
-        }
-      }
-    }
 
     if (mounted) {
       setState(() {});
@@ -933,7 +762,6 @@ class _VidioState extends State<Vidio>
         if (mounted) {
           setState(() {
             widget.onShowMenu?.call(showMenu, isQualityPickerVisible);
-            // Also hide quality picker when controls are hidden
             if (isQualityPickerVisible) {
               removeOverlay();
             }
@@ -960,33 +788,9 @@ class _VidioState extends State<Vidio>
 
   void togglePlay() {
     createHideControlBarTimer();
-    final wasPlaying = controller?.value.isPlaying ?? false;
     playbackManager.togglePlay(controller);
-    final isPlaying = controller?.value.isPlaying ?? false;
-
-    if (kDebugMode) {
-      print(
-        'DEBUG: Play state changed - Was playing: '
-        '$wasPlaying, Now playing: $isPlaying',
-      );
-    }
-
-    // If video was paused and is now playing,
-    // ensure continuous caching is active
-    if (!wasPlaying &&
-        isPlaying &&
-        widget.allowCacheFile &&
-        !_isContinuousCachingActive) {
-      final currentUrl = controller!.dataSource;
-      if (currentUrl.isNotEmpty) {
-        if (kDebugMode) {
-          print('DEBUG: Resuming continuous caching after play');
-        }
-        _startContinuousCaching(currentUrl);
-      }
-    }
-
     eventManager.callPlayButtonTap(controller?.value.isPlaying ?? false);
+
     if (mounted) {
       setState(() {});
     }
@@ -1019,8 +823,6 @@ class _VidioState extends State<Vidio>
           setState(() => hasInitError = false);
         }
         seekToLastPlayingPosition();
-        // Don't clear caching progress - let it continue in background
-        // _clearCachingProgress();
       }
     }).catchError((dynamic error, StackTrace? stackTrace) {
       errorHandler.handleInitializationError(
@@ -1033,7 +835,6 @@ class _VidioState extends State<Vidio>
       }
     });
 
-    // Hide quality list for offline content
     if (isOffline ?? false) {
       hideQualityList = true;
     }
@@ -1050,7 +851,7 @@ class _VidioState extends State<Vidio>
         }
       } catch (e) {
         if (kDebugMode) {
-          print('Error: $e');
+          print('❌ Error: $e');
         }
       }
     }
@@ -1095,7 +896,6 @@ class _VidioState extends State<Vidio>
   }
 
   void showOverlay() {
-    // Prevent showing overlay if already visible
     if (isQualityPickerVisible) {
       return;
     }
@@ -1107,7 +907,6 @@ class _VidioState extends State<Vidio>
     uiStateManager.showOverlay(context, m3u8List());
   }
 
-  /// Public method to show the quality picker overlay
   void showQualityPicker() {
     showOverlay();
   }
@@ -1215,7 +1014,6 @@ class _VidioState extends State<Vidio>
     uiStateManager.removeOverlay();
   }
 
-  /// Public method to hide the quality picker overlay
   void hideQualityPicker() {
     removeOverlay();
   }
@@ -1230,590 +1028,117 @@ class _VidioState extends State<Vidio>
     }
   }
 
-  /// Updates caching progress and notifies UI
-  void _updateCachingProgress(double progress, [String? log]) {
-    if (!widget.allowCacheFile || !mounted) return;
+  // ==================== YouTube-Style Adaptive Caching ====================
+
+  /// Start YouTube-style adaptive caching
+  void _startAdaptiveCaching() {
+    if (!widget.allowCacheFile || controller == null) {
+      if (kDebugMode) {
+        print(
+            '⚠️ Adaptive caching disabled - allowCacheFile: ${widget.allowCacheFile}, controller: ${controller != null}');
+      }
+      return;
+    }
+
+    if (!controller!.value.isInitialized) {
+      if (kDebugMode) {
+        print('⚠️ Adaptive caching not started - controller not initialized');
+      }
+      return;
+    }
+
+    final videoDuration = controller!.value.duration;
+    if (videoDuration == Duration.zero) {
+      if (kDebugMode) {
+        print('⚠️ Adaptive caching not started - video duration is zero');
+      }
+      return;
+    }
 
     if (kDebugMode) {
-      print(
-        'DEBUG: Updating cache progress: ${(progress * 100).toInt()}%, log: $log',
-      );
+      print('🚀 Starting YouTube-style adaptive caching');
+      print('📹 Video URL: ${widget.url}');
+      print('⏱️ Duration: ${videoDuration.inSeconds}s');
+      print('🎬 Format: $videoFormat');
     }
 
-    // Only add logs if they're meaningful (not just progress updates)
-    if (log != null && !log.contains('Cache progress:')) {
-      _cacheLogs.add(log);
-      // Keep only last 3 logs to avoid memory issues
-      if (_cacheLogs.length > 3) {
-        _cacheLogs.removeAt(0);
-      }
+    // Clear previous cache data
+    _cachedRanges.clear();
+    _cacheLogs.clear();
+
+    // Start adaptive caching with the cache manager
+    VideoCacheManager().startAdaptiveCaching(
+      videoUrl: widget.url,
+      videoDuration: videoDuration,
+      currentPositionStream: _positionStreamController.stream,
+      quality: videoFormat?.toLowerCase(),
+      headers: widget.headers,
+      onProgress: _updateCachingProgress,
+      onLog: _addCacheLog,
+      onCachedRangesUpdated: _updateCachedRanges,
+    );
+  }
+
+  /// Stop adaptive caching
+  void _stopAdaptiveCaching() {
+    if (kDebugMode) {
+      print('⏹️ Stopping adaptive caching');
     }
 
-    // Create more informative progress message
-    final segmentInfo = _cachedRanges.isNotEmpty
-        ? ' (${_cachedRanges.length} segments cached)'
-        : '';
-    final statusMessage = progress >= 1.0
-        ? 'Segment buffered ahead$segmentInfo'
-        : progress > 0.0
-            ? 'Buffering segment... ${(progress * 100).toInt()}%$segmentInfo'
-            : 'Preparing buffer...$segmentInfo';
+    VideoCacheManager().stopAdaptiveCaching(
+      widget.url,
+      quality: videoFormat?.toLowerCase(),
+    );
 
-    // Add status message to logs if it's meaningful
-    if (statusMessage.isNotEmpty && !_cacheLogs.contains(statusMessage)) {
-      _cacheLogs.add(statusMessage);
-      if (_cacheLogs.length > 3) {
-        _cacheLogs.removeAt(0);
-      }
-    }
-
+    // Clear caching progress
     if (mounted) {
       setState(() {
-        _cachingProgress = CachingProgressData(
-          progress: progress,
-          logs: List.from(_cacheLogs),
-          isVisible: _isContinuousCachingActive ||
-              progress > 0.0, // Show when caching is active or in progress
-        );
+        _cachingProgress = null;
       });
     }
   }
 
-  /// Starts caching with progress tracking
-  void _startCaching(String url, {String? quality}) {
-    if (!widget.allowCacheFile) {
-      if (kDebugMode) {
-        print('DEBUG: Caching disabled - allowCacheFile is false');
-      }
-      return;
-    }
+  /// Update caching progress
+  void _updateCachingProgress(double progress) {
+    if (!mounted) return;
 
-    if (kDebugMode) {
-      print('DEBUG: Starting caching for URL: $url with quality: $quality');
-    }
-    _currentVideoUrl = url;
-    _cacheLogs.clear();
-    _updateCachingProgress(0, 'Starting background cache...');
-
-    VideoCacheManager().cacheVideoFile(
-      url,
-      quality: quality,
-      headers: widget.headers,
-      onProgress: (double progress) {
-        if (kDebugMode) {
-          print('DEBUG: Cache progress update: ${(progress * 100).toInt()}%');
-        }
-        _updateCachingProgress(progress);
-      },
-      onLog: (String log) {
-        if (kDebugMode) {
-          print('DEBUG: Cache log: $log');
-        }
-        // Only log important events, not every progress update
-        if (!log.contains('Cache progress:') &&
-            !log.contains('Background cache progress:')) {
-          _updateCachingProgress(_cachingProgress?.progress ?? 0.0, log);
-        }
-      },
-      onComplete: (File? file) {
-        if (kDebugMode) {
-          print('DEBUG: Cache completed: ${file?.path}');
-        }
-        if (file != null) {
-          _updateCachingProgress(1, 'Cache completed');
-          widget.onCacheFileCompleted?.call([file]);
-          // Keep progress visible briefly then hide
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) {
-              _updateCachingProgress(0); // Hide progress
-            }
-          });
-        }
-      },
-      onError: (dynamic error) {
-        if (kDebugMode) {
-          print('DEBUG: Cache error: $error');
-        }
-        _updateCachingProgress(
-          _cachingProgress?.progress ?? 0.0,
-          'Cache failed',
-        );
-        widget.onCacheFileFailed?.call(error);
-        // Hide progress after error
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            _updateCachingProgress(0);
-          }
-        });
-      },
-    );
+    setState(() {
+      _cachingProgress = CachingProgressData(
+        progress: progress,
+        logs: List.from(_cacheLogs),
+        isVisible: progress > 0 && progress < 1.0,
+      );
+    });
   }
 
-  /// Starts YouTube-style continuous caching during playback
-  void _startContinuousCaching(String url) {
-    if (!widget.allowCacheFile || controller == null) return;
+  /// Add cache log
+  void _addCacheLog(String log) {
+    if (!mounted) return;
 
-    if (kDebugMode) {
-      print('DEBUG: Starting continuous caching for: $url');
-      print('DEBUG: Video duration: ${_currentVideoDurationMs}ms');
-      print('DEBUG: Estimated file size: ${_estimateFileSize()} bytes');
-    }
-    _currentVideoUrl = url;
-    _cacheLogs.clear();
-    _cachedRanges.clear(); // Clear previous cached ranges for new video
-    _isContinuousCachingActive = true;
-
-    // Get current playback position for smart caching ahead
-    final totalDuration = controller!.value.duration.inMilliseconds;
-
-    if (totalDuration == 0) return;
-
-    _currentVideoDurationMs = totalDuration;
-
-    // Start prefetching next few segments
-    _prefetchSegments();
-
-    // Continue caching until video is fully cached
-    _ensureFullCaching();
-  }
-
-  /// Ensures video is fully cached by continuously checking and caching missing segments
-  void _ensureFullCaching() {
-    if (!widget.allowCacheFile || !_isContinuousCachingActive || controller == null) return;
-
-    // Check if video is fully cached
-    final overallProgress = getOverallCachingProgress();
-    if (overallProgress >= 0.95) { // Consider 95% cached as fully cached
-      if (kDebugMode) {
-        print('DEBUG: Video fully cached (${(overallProgress * 100).toInt()}%)');
-      }
-      _stopContinuousCaching();
-      return;
-    }
-
-    // Continue prefetching if not fully cached
-    Future.delayed(const Duration(seconds: 10), () {
-      if (mounted && _isContinuousCachingActive) {
-        _prefetchSegments();
-        _ensureFullCaching(); // Recursively check again
+    setState(() {
+      _cacheLogs.add(log);
+      // Keep only last 5 logs
+      if (_cacheLogs.length > 5) {
+        _cacheLogs.removeAt(0);
       }
     });
   }
 
+  /// Update cached ranges for seek bar visualization
+  void _updateCachedRanges(List<CachedRange> ranges) {
+    if (!mounted) return;
 
-
-  /// Stops continuous caching
-  void _stopContinuousCaching() {
-    if (kDebugMode) {
-      print('DEBUG: Stopping continuous caching');
-    }
-    _isContinuousCachingActive = false;
-
-    // Only update progress if widget is still mounted
-    if (mounted) {
-      _updateCachingProgress(0); // Hide progress
-    }
-
-    // Clear current video URL to prevent accidental restarts
-    _currentVideoUrl = null;
-  }
-
-
-
-  /// Calculates start byte for caching based on playback position
-  int _calculateCacheStartByte(int currentPositionMs, int totalDurationMs) {
-    // Start caching from current position + 10 seconds buffer
-    const bufferMs = 10000;
-    final startMs = (currentPositionMs + bufferMs).clamp(0, totalDurationMs);
-
-    // Estimate byte position (rough approximation)
-    final progressRatio = startMs / totalDurationMs;
-    return (progressRatio * _estimateFileSize()).toInt();
-  }
-
-  /// Calculates end byte for caching
-  int _calculateCacheEndByte(int currentPositionMs, int totalDurationMs) {
-    // Cache 30 seconds ahead
-    const cacheAheadMs = 30000;
-    final endMs = (currentPositionMs + cacheAheadMs).clamp(0, totalDurationMs);
-
-    final progressRatio = endMs / totalDurationMs;
-    return (progressRatio * _estimateFileSize()).toInt();
-  }
-
-  /// Estimates file size based on duration and bitrate
-  int _estimateFileSize() {
-    if (_currentVideoDurationMs == 0) return 0;
-
-    // More realistic estimation for video files:
-    // assume 50MB per minute (typical for HD video)
-    const bytesPerMinute = 50000000; // 50MB per minute
-    final durationMinutes = _currentVideoDurationMs / 60000.0;
-    final estimatedSize = (durationMinutes * bytesPerMinute).toInt();
-
-    if (kDebugMode) {
-      print(
-        'DEBUG: Estimated file size: ${estimatedSize ~/ 1000000}MB '
-        'for ${durationMinutes.toStringAsFixed(1)} minutes',
-      );
-    }
-    return estimatedSize;
-  }
-
-  /// Adds a cached range to the list
-  void _addCachedRange(int startByte, int endByte) {
-    final newRange = CachedRange(
-      startByte: startByte,
-      endByte: endByte,
-      cachedAt: DateTime.now(),
-    );
-    _cachedRanges.add(newRange);
-
-    // Merge overlapping ranges
-    _mergeCachedRanges();
-
-    if (kDebugMode) {
-      print(
-        'DEBUG: Added cached range: '
-        '$startByte - $endByte (${(newRange.size / 1000000).toStringAsFixed(1)}MB), '
-        'total ranges: ${_cachedRanges.length}',
-      );
-      print(
-        'DEBUG: All cached ranges: '
-        '${_cachedRanges.map((r) => '${r.startByte}-${r.endByte}').join(', ')}',
-      );
-    }
-
-    // Force UI update to show new cached ranges
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  /// Merges overlapping cached ranges
-  void _mergeCachedRanges() {
-    if (_cachedRanges.length < 2) return;
-
-    _cachedRanges.sort((a, b) => a.startByte.compareTo(b.startByte));
-
-    final merged = <CachedRange>[];
-    var current = _cachedRanges[0];
-
-    for (var i = 1; i < _cachedRanges.length; i++) {
-      final next = _cachedRanges[i];
-      if (current.endByte >= next.startByte) {
-        // Merge overlapping ranges
-        current = CachedRange(
-          startByte: current.startByte,
-          endByte:
-              current.endByte > next.endByte ? current.endByte : next.endByte,
-          cachedAt: DateTime.now(),
-        );
-      } else {
-        merged.add(current);
-        current = next;
-      }
-    }
-    merged.add(current);
-    _cachedRanges
-      ..clear()
-      ..addAll(merged);
-  }
-
-  /// Checks if a byte range is already cached
-  bool _isRangeCached(int startByte, int endByte) {
-    // Check if any significant portion of this range is already cached
-    final rangeSize = endByte - startByte;
-    if (rangeSize <= 0) return true; // Empty range is considered cached
-
-    var cachedBytes = 0;
-    for (final range in _cachedRanges) {
-      final overlapStart =
-          startByte > range.startByte ? startByte : range.startByte;
-      final overlapEnd = endByte < range.endByte ? endByte : range.endByte;
-
-      if (overlapStart < overlapEnd) {
-        cachedBytes += overlapEnd - overlapStart;
-      }
-    }
-
-    // Consider cached if more than 50% of the range is already cached
-    final cachedRatio = cachedBytes / rangeSize;
-    final isCached = cachedRatio > 0.5;
-
-    if (kDebugMode) {
-      print(
-        'DEBUG: Range $startByte-$endByte: '
-        '$cachedBytes cached bytes (${(cachedRatio * 100).toInt()}%),'
-        ' considered cached: $isCached',
-      );
-    }
-
-    return isCached;
-  }
-
-  /// Gets cached ranges as a list of progress values (0.0 to 1.0)
-  List<CachedRange> getCachedRanges() {
-    return List.from(_cachedRanges);
-  }
-
-  /// Load existing cached ranges from cache manager
-  Future<void> _loadExistingCachedRanges(String url, String? format) async {
-    if (!widget.allowCacheFile) return;
-
-    try {
-      final quality = format?.toLowerCase();
-      final estimatedTotalBytes = _estimateFileSize();
-
-      final existingRanges = await VideoCacheManager().getCachedRanges(
-        url,
-        quality,
-        estimatedTotalBytes,
-      );
-
-      if (existingRanges.isNotEmpty) {
-        _cachedRanges.clear();
-        _cachedRanges.addAll(existingRanges);
-
-        if (kDebugMode) {
-          print('DEBUG: Loaded ${existingRanges.length} existing cached ranges');
-          for (final range in existingRanges) {
-            print('DEBUG: Range: ${range.startByte}-${range.endByte} (${(range.size / 1000000).toStringAsFixed(1)}MB)');
-          }
-        }
-
-        // Force UI update
-        if (mounted) {
-          setState(() {});
-        }
-      } else {
-        // No cached ranges found, clear any existing ones
-        _cachedRanges.clear();
-        if (kDebugMode) {
-          print('DEBUG: No cached ranges found for this video');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('DEBUG: Error loading existing cached ranges: $e');
-      }
-      // Clear cached ranges on error to prevent showing wrong data
+    setState(() {
       _cachedRanges.clear();
-    }
-  }
+      _cachedRanges.addAll(ranges);
+    });
 
-  /// Check if cached content exists for the given URL
-  Future<bool> _checkForCachedContent(String url, String? format) async {
-    try {
-      final quality = format?.toLowerCase();
-      final cachedFile = await VideoCacheManager().getCachedFile(url, quality: quality);
-      return cachedFile != null;
-    } catch (e) {
-      if (kDebugMode) {
-        print('DEBUG: Error checking cached content: $e');
+    if (kDebugMode && ranges.isNotEmpty) {
+      print('📦 Cached ranges updated: ${ranges.length} ranges');
+      for (final range in ranges) {
+        print(
+            '   └─ ${range.startByte}-${range.endByte} (${(range.size / 1024 / 1024).toStringAsFixed(2)}MB)');
       }
-      return false;
-    }
-  }
-
-  /// Check if network is available
-  bool _isNetworkAvailable() {
-    // For now, we'll use a simple approach - check if we can reach a reliable host
-    // In a production app, you'd use connectivity_plus package
-    try {
-      // This is a simple check - in practice you'd want to use proper network detection
-      // For now, assume network is available unless we have specific offline indicators
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Gets the overall caching progress (0.0 to 1.0)
-  /// based on cached ranges vs estimated total
-  double getOverallCachingProgress() {
-    if (_cachedRanges.isEmpty || _currentVideoDurationMs == 0) return 0;
-
-    final estimatedTotalBytes = _estimateFileSize();
-    if (estimatedTotalBytes == 0) return 0;
-
-    var totalCachedBytes = 0;
-    for (final range in _cachedRanges) {
-      totalCachedBytes += range.size;
-    }
-
-    return (totalCachedBytes / estimatedTotalBytes).clamp(0.0, 1.0);
-  }
-
-  // No bandwidth/adaptive-quality logic - caching will remain simple and continuous
-
-
-
-  /// Prefetch next few segments ahead of playback
-  void _prefetchSegments() {
-    if (_isPrefetching || controller == null || !widget.allowCacheFile) return;
-
-    _isPrefetching = true;
-    final currentPosition = controller!.value.position.inMilliseconds;
-    final totalDuration = _currentVideoDurationMs;
-
-    // Prefetch next 3 segments (e.g., 15 seconds each) - balanced approach
-    const segmentDurationMs = 15000;
-    const prefetchCount = 3;
-
-    // Also cache some segments behind current position for better seeking
-    const behindCacheCount = 1;
-
-    // Cache segments ahead
-    for (int i = 0; i < prefetchCount; i++) {
-      final segmentStart = currentPosition + (i * segmentDurationMs);
-      if (segmentStart >= totalDuration) break;
-
-      final segmentEnd = segmentStart + segmentDurationMs;
-      final startByte = _calculateCacheStartByte(segmentStart, totalDuration);
-      final endByte = _calculateCacheEndByte(segmentEnd, totalDuration);
-
-      if (!_isRangeCached(startByte, endByte)) {
-        _prefetchQueue.add('$startByte-$endByte-ahead');
-      }
-    }
-
-    // Cache segments behind for better seeking experience
-    for (int i = 1; i <= behindCacheCount; i++) {
-      final segmentStart = currentPosition - (i * segmentDurationMs);
-      if (segmentStart < 0) break;
-
-      final segmentEnd = segmentStart + segmentDurationMs;
-      final startByte = _calculateCacheStartByte(segmentStart, totalDuration);
-      final endByte = _calculateCacheEndByte(segmentEnd, totalDuration);
-
-      if (!_isRangeCached(startByte, endByte)) {
-        _prefetchQueue.add('$startByte-$endByte-behind');
-      }
-    }
-
-    // Start prefetching
-    _processPrefetchQueue();
-  }
-
-  /// Process prefetch queue
-  void _processPrefetchQueue() {
-    if (_prefetchQueue.isEmpty) {
-      _isPrefetching = false;
-      return;
-    }
-
-    final rangeInfo = _prefetchQueue.removeAt(0);
-    final parts = rangeInfo.split('-');
-    final startByte = int.parse(parts[0]);
-    final endByte = int.parse(parts[1]);
-    final cacheType = parts.length > 2 ? parts[2] : 'ahead'; // ahead or behind
-
-    // Prioritize ahead segments over behind segments
-    if (cacheType == 'behind' && _prefetchQueue.any((item) => item.contains('-ahead'))) {
-      // Move behind items to the end of queue
-      _prefetchQueue.add(rangeInfo);
-      _processPrefetchQueue();
-      return;
-    }
-
-    if (kDebugMode) {
-      print('DEBUG: Processing prefetch range: $startByte-$endByte ($cacheType)');
-    }
-
-    VideoCacheManager().cacheVideoFilePartial(
-      _currentVideoUrl!,
-      startByte: startByte,
-      endByte: endByte,
-      headers: widget.headers, // Pass the headers from Vidio widget
-      onProgress: (progress) {
-        // Update progress
-        if (kDebugMode && progress > 0) {
-          print('DEBUG: Prefetch progress for $startByte-$endByte: ${(progress * 100).toInt()}%');
-        }
-      },
-      onRangeCached: (start, end) {
-        if (kDebugMode) {
-          print('DEBUG: Range cached successfully: $start-$end');
-        }
-        _addCachedRange(start, end);
-        // Force UI update
-        if (mounted) {
-          setState(() {});
-        }
-        // Continue prefetching with a small delay to avoid interfering with playback
-        Future.delayed(const Duration(milliseconds: 300), () {
-          _processPrefetchQueue();
-        });
-      },
-      onLog: (log) {
-        if (kDebugMode) {
-          print('DEBUG: Cache log for $startByte-$endByte: $log');
-        }
-        _cacheLogs.add(log);
-      },
-      onError: (error) {
-        if (kDebugMode) {
-          print('DEBUG: Cache error for $startByte-$endByte: $error');
-        }
-        // Handle error with delay to avoid rapid retries
-        Future.delayed(const Duration(seconds: 1), () {
-          _processPrefetchQueue();
-        });
-      },
-    );
-  }
-
-  /// Checks if a position can be played from cache
-  bool canPlayFromCache(int positionMs) {
-    if (_cachedRanges.isEmpty || _currentVideoDurationMs == 0) return false;
-
-    final totalDuration = _currentVideoDurationMs;
-    final progressRatio = positionMs / totalDuration;
-    final positionByte = (progressRatio * _estimateFileSize()).toInt();
-
-    // Check if position is within cached ranges
-    return _isRangeCached(positionByte - 100000, positionByte + 100000); // 100KB buffer
-  }
-
-  /// Seeks to the nearest cached position if current position is not cached
-  Future<void> seekToCachedPosition(int targetPositionMs) async {
-    if (controller == null || _cachedRanges.isEmpty) return;
-
-    final totalDuration = _currentVideoDurationMs;
-    if (totalDuration == 0) return;
-
-    // If target position is cached, seek normally
-    if (canPlayFromCache(targetPositionMs)) {
-      await controller!.seekTo(Duration(milliseconds: targetPositionMs));
-      return;
-    }
-
-    // Find nearest cached position
-    final progressRatio = targetPositionMs / totalDuration;
-    final targetByte = (progressRatio * _estimateFileSize()).toInt();
-
-    CachedRange? nearestRange;
-    int minDistance = _estimateFileSize();
-
-    for (final range in _cachedRanges) {
-      final distance = (range.startByte - targetByte).abs();
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearestRange = range;
-      }
-    }
-
-    if (nearestRange != null) {
-      // Convert byte position back to time
-      final rangeProgress = nearestRange.startByte / _estimateFileSize();
-      final seekPositionMs = (rangeProgress * totalDuration).toInt();
-
-      if (kDebugMode) {
-        print('DEBUG: Seeking to nearest cached position: ${Duration(milliseconds: seekPositionMs).inSeconds}s');
-      }
-
-      await controller!.seekTo(Duration(milliseconds: seekPositionMs));
     }
   }
 }

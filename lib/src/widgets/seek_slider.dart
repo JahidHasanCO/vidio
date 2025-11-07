@@ -70,7 +70,9 @@ class _SeekSliderState extends State<SeekSlider> {
     }
 
     // Debug: Log cached ranges
-    if (kDebugMode && widget.cachedRanges != null && widget.cachedRanges!.isNotEmpty) {
+    if (kDebugMode &&
+        widget.cachedRanges != null &&
+        widget.cachedRanges!.isNotEmpty) {
       print('DEBUG: SeekSlider received cached ranges: '
           '${widget.cachedRanges!.map((r) => '${r.startByte}-${r.endByte}').join(', ')}');
     }
